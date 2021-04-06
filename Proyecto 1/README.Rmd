@@ -166,8 +166,8 @@ Luego, se utiliza el algoritmo de fuerza bruta sobre esta matriz, en donde nueva
 
 library(stuart) 
 
-resultadoFB <- bruteforce(Filtro_de_ingredientes,list(ra = names(Filtro_de_ingredientes)),5, cores = NULL)  #El 5 son los ingredientes que quiero
-summary(resultadoFB)
+#resultadoFB <- bruteforce(Filtro_de_ingredientes,list(ra = names(Filtro_de_ingredientes)),5, cores = NULL)  #El 5 son los ingredientes que quiero
+#summary(resultadoFB)
 
 ```
 De esta manera, el resultado del algoritmo al buscar 5 ingredientes es "pan_brioche", "sopaipillas", "mechada", "mayonesa_casera" y "carne_mechada". Siendo estos ingredientes perteneicentes a recetas con nota 5 y con alta participación en estas, se garantiza una buena calificación con la receta, logrando el objetivo del desafio.
