@@ -1,0 +1,62 @@
+---
+title: "Actividad Ayudantia 3: Outliers"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Importar Datos
+
+En primer lugar, se procede a importar los datos. Estos corresponden a la base de datos del Titanic.
+
+```{r cargar y revisar datos}
+library(datasets)
+library(readr)
+titanic <- read_csv("~/GitHub/Entregas_mineria_de_datos/Ayudantias/Actividad Ayudantia 3/titanic.csv")
+View(titanic)
+
+```
+
+## Analisisi Visual
+
+Se procede a realizar un boxplot con respecto a la edad.
+
+```{r}
+boxplot(titanic$AGE, horizontal = TRUE)
+
+boxplot.stats(titanic$AGE)
+```
+## Limpieza de Datos
+
+Se identificaron multiples outliers, por lo cual se procede a filtrar estos. 
+
+```{r}
+titanic_clean1 <- titanic$AGE[titanic$AGE < 78]
+
+boxplot(titanic_clean1, horizontal = TRUE)
+
+boxplot.stats(titanic_clean1)
+
+
+
+```
+
+Se siguen identificando outliers por lo cual se acota el limite superior de la edad. 
+
+
+```{r}
+titanic_clean2 <- titanic$AGE[titanic$AGE < 75]
+
+boxplot(titanic_clean2, horizontal = TRUE)
+
+boxplot.stats(titanic_clean2)
+
+
+
+```
+Desde este momento, se concluye la limpieza de datos dado que no se identifican más outliers. 
+
+
+

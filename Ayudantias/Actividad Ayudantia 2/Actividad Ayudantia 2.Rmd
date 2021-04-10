@@ -1,0 +1,61 @@
+---
+title: "Actividad Ayudantia 2: Analisis Exploratorio de Datos "
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Importar Data
+
+Se procede a importar la Data utilizada.
+
+```{r}
+library(readr)
+Primer_Tiempo2020 <- read_csv("~/GitHub/Entregas_mineria_de_datos/Ayudantias/Actividad Ayudantia 2/Primer_Tiempo2020.csv")
+View(Primer_Tiempo2020)
+summary(Primer_Tiempo2020)
+attach(Primer_Tiempo2020)
+```
+ 
+ ## Borrar Datos Char
+```{r}
+Primer_Tiempo2020 <- Primer_Tiempo2020[,!(colnames(Primer_Tiempo2020) %in% c("id_partido", "fasepartido", "local", "tiempo","formationUsed", "torneo"))]
+Primer_Tiempo2020
+```
+
+
+## Analisis descriptivo
+
+```{r}
+fh2020 <- Primer_Tiempo2020[order(Primer_Tiempo2020$accuratePass, decreasing = TRUE),]
+fh2020
+```
+
+## Sub DataFrames
+
+```{r}
+fh2020_pases = fh2020[,colnames(Primer_Tiempo2020) %in% c("equipo", "partido", "accuratePass", "totalPass", "precision_pases")]
+fh2020_pases = fh2020_pases[order(fh2020_pases$precision_pases, decreasing = TRUE),]
+
+fh2020_pases
+```
+## Filtrar Datos
+```{r}
+everton <- filter(Primer_Tiempo2020, equipo == "Everton")
+everton_pases <- filter(fh2020_pases, equipo == "Everton")
+```
+
+## Graficos
+```{r}
+pases_everton <- everton_pases$accuratePass
+everton2 <- everton[order(everton_pases$accuratePass, decreasing = FALSE),]
+
+dotchart(everton$totalPass, labels = utf8_encode(everton$partido), cex=0.5, xlab = "Pases", ylab = "Partido")
+```
+
+
+
+
+
