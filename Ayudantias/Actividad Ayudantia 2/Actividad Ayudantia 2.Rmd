@@ -49,10 +49,14 @@ everton_pases <- filter(fh2020_pases, equipo == "Everton")
 
 ## Graficos
 ```{r}
-pases_everton <- everton_pases$accuratePass
-everton2 <- everton[order(everton_pases$accuratePass, decreasing = FALSE),]
+library(utf8)
 
-dotchart(everton$totalPass, labels = utf8_encode(everton$partido), cex=0.5, xlab = "Pases", ylab = "Partido")
+lalala = as.data.frame(everton_pases)
+attach(lalala)
+pases_everton <- lalala$accuratePass
+everton2 <- everton[order(accuratePass, decreasing = FALSE),]
+
+dotchart(totalPass, labels = utf8_encode(partido), cex=0.5, xlab = "Pases", ylab = "Partido")
 ```
 
 
