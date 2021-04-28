@@ -1,0 +1,318 @@
+---
+title: "Actividad Ayudantia 5 Clusters"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Algoritmo de Clustering base:
+
+## K-Medias
+
+Vamos a analizar data_pok de ventas de videojuegos
+```{r load data_pok, message= FALSE}
+library(tidyverse)
+
+library(readr)
+data_pok <- read_csv("~/GitHub/Entregas_mineria_de_datos/Ayudantias/Actividad Ayudantia 5/pokemon.csv")
+View(data_pok)
+
+head(data_pok)
+attach(data_pok)
+
+summary(data_pok)
+```
+
+Antes de clusterizar debemos preparar la data_pok:
+
+- Eliminando datos faltantes. 
+
+- Pasar Legendary a numerico.
+
+- Escalar la data_pok
+
+```{r }
+#Como no tenemos datos nulos obviamos este paso
+
+levels(data_pok$Legendary) <- c(0,1)
+data_pok$Legendary <- as.numeric(data_pok$Legendary)
+
+`Type 1` <- as.numeric(`Type 1`)
+
+numdata_pok <- data_pok[, colnames(data_pok) %in% c("Type.1","HP", "Attack", "Defense", "Speed", "Generation", "Legendary")]
+
+escal_data_pok = scale(numdata_pok) %>% as_tibble()
+
+escal_data_pok %>% summary()
+
+```
+
+aplicar el algoritmo de kmedias, que viene implementado en R base. aplicar kmedias con k = 10
+```{r}
+modelo_kmeans <- kmeans(escal_data_pok, centers = 10)
+modelo_kmeans2 <- kmeans(numdata_pok, centers = 10)
+
+# creo la variable cluster en la tabla escal_data_pokda
+escal_data_pok$clus <- modelo_kmeans$cluster %>% as.factor()
+numdata_pok$clus <- modelo_kmeans2$cluster %>% as.factor()
+
+ggplot(escal_data_pok, aes(Speed, Attack, color=clus)) +
+  geom_point(alpha=0.5, show.legend = T) +
+  theme_bw()
+
+ggplot(numdata_pok, aes(Speed, Attack, color=clus)) +
+  geom_point(alpha=0.5, show.legend = T) +
+  theme_bw()
+
+info_clus <- modelo_kmeans$centers
+info_clus2 <- modelo_kmeans2$centers
+
+info_clus
+info_clus2
+```
+
+Vamos a ver como evoluciona la suma de cuadrados intra-cluster en la medida que aumentamos el numero de k
+```{r}
+SSinterior <- numeric(30)
+
+for(k in 1:30){
+  modelo <- kmeans(escal_data_pok, centers = k)
+  SSinterior[k] <- modelo$tot.withinss
+}
+
+plot(SSinterior)
+```
+
+## Evaluacion
+
+Inspeccion visual
+```{r}
+
+escal_data_pok$clus <- as.numeric(escal_data_pok$clus)
+numdata_pok$clus <- as.numeric(numdata_pok$clus)
+
+# uso distancia euclidiana
+tempDist <- dist(escal_data_pok) %>% as.matrix()
+
+#reordeno filas y columnas en base al cluster obtenido
+index <- sort(modelo_kmeans$cluster, index.return=TRUE)
+tempDist <- tempDist[index$ix,index$ix]
+rownames(tempDist) <- c(1:nrow(escal_data_pok))
+colnames(tempDist) <- c(1:nrow(escal_data_pok))
+
+image(tempDist)
+```
+
+Estadistico de Hopkins. 
+```{r}
+library(factoextra)
+
+#Calcula el hopkins statistic 
+res <- get_clust_tendency(escal_data_pok, n = 30, graph = FALSE)
+res2 <- get_clust_tendency(numdata_pok, n = 30, graph = FALSE)
+
+print(res)
+print(res2)
+```
+
+Indice de correlación
+```{r}
+#Correlation
+#construyo matriz de correlacion ideal (cada entidad correlaciona 1 con su cluster)
+tempMatrix <- matrix(0, nrow = nrow(numdata_pok), ncol = nrow(numdata_pok))
+tempMatrix[which(index$x==1), which(index$x==1)]  <- 1
+tempMatrix[which(index$x==2), which(index$x==2)]  <- 1
+tempMatrix[which(index$x==3), which(index$x==3)]  <- 1
+tempMatrix[which(index$x==4), which(index$x==4)]  <- 1
+tempMatrix[which(index$x==5), which(index$x==5)]  <- 1
+tempMatrix[which(index$x==6), which(index$x==6)]  <- 1
+tempMatrix[which(index$x==7), which(index$x==7)]  <- 1
+tempMatrix[which(index$x==8), which(index$x==8)]  <- 1
+tempMatrix[which(index$x==9), which(index$x==9)]  <- 1
+tempMatrix[which(index$x==10), which(index$x==10)] <- 1
+
+#construyo matriz de disimilitud
+tempDist2 <- 1/(1+tempDist)
+
+#Calcula correlacion 
+cor <- cor(tempMatrix[upper.tri(tempMatrix)],tempDist2[upper.tri(tempDist2)])
+
+print(cor)
+```
+
+Indice de cohesión y el de separación.
+```{r}
+library(flexclust) # usaremos la distancia implementada en flexclus (dist2) que maneja mejor objetos de diferente tamaño
+#escal_data_pok <- apply(escal_data_pok,2,as.numeric)
+ 
+#Cohesion
+withinCluster <- numeric(10)
+for (i in 1:10){
+  tempdata_pok <- escal_data_pok[which(modelo_kmeans$cluster == i),]
+  withinCluster[i] <- sum(dist2(tempdata_pok,colMeans(tempdata_pok))^2)
+}
+cohesion = sum(withinCluster)
+#es equivalente a model$tot.withinss en k-means
+print(c(cohesion, modelo_kmeans$tot.withinss))
+
+#Separation
+meandata_pok <- colMeans(escal_data_pok)
+SSB <- numeric(10)
+for (i in 1:10){
+  tempdata_pok <- escal_data_pok[which(modelo_kmeans$cluster==i),]
+  SSB[i] <- nrow(tempdata_pok)*sum((meandata_pok-colMeans(tempdata_pok))^2)
+}
+separation = sum(SSB)
+
+print(separation)
+```
+
+Y finalmente aplicamos el coeficiente de silueta
+```{r}
+library(cluster)
+
+coefSil <- silhouette(modelo_kmeans$cluster,dist(escal_data_pok))
+summary(coefSil)
+
+#visualizamos el codigo de silueta de cada cluster
+fviz_silhouette(coefSil) + coord_flip()
+```
+
+## Utilizamos el coeficiente de silueta para encontrar el mejor valor de K
+```{r}
+
+coefSil=numeric(30)
+for (k in 2:30){
+  modelo <- kmeans(escal_data_pok, centers = k)
+  temp <- silhouette(modelo$cluster,dist(escal_data_pok))
+  coefSil[k] <- mean(temp[,3])
+}
+tempDF=data.frame(CS=coefSil,K=c(1:30))
+
+ggplot(tempDF, aes(x=K, y=CS)) + 
+  geom_line() +
+  scale_x_continuous(breaks=c(1:30))
+```
+#Aplicando la correción con un K de 8 dado que es donde el grafico muestra el mayor valor. 
+
+```{r}
+numdata_pok2 <- data_pok[, colnames(data_pok) %in% c("Type.1","HP", "Attack", "Defense", "Sp..Atk", "Sp..Def", "Speed", "Generation", "Legendary")]
+escal_data_pok2 = scale(numdata_pok2) %>% as_tibble()
+
+modelo_kmean <- kmeans(escal_data_pok2, centers = 8)
+modelo_kmean2 <- kmeans(numdata_pok2, centers = 8)
+
+# creo la variable cluster en la tabla escal_data_pokda
+escal_data_pok2$clus2 <- modelo_kmean$cluster %>% as.factor()
+numdata_pok2$clus2 <- modelo_kmean2$cluster %>% as.factor()
+
+ggplot(escal_data_pok2, aes(Speed, Attack, color=clus2)) +
+  geom_point(alpha=0.5, show.legend = T) +
+  theme_bw()
+
+ggplot(numdata_pok2, aes(Speed, Attack, color=clus2)) +
+  geom_point(alpha=0.5, show.legend = T) +
+  theme_bw()
+
+info_clusters <- modelo_kmean$centers
+info_clusters2 <- modelo_kmean2$centers
+
+info_clusters
+info_clusters2
+```
+
+## Evaluacion del modelo Corregido 
+
+Inspeccion visual
+```{r}
+# uso distancia euclidiana
+tempDist_2 <- dist(escal_data_pok2) %>% as.matrix()
+
+#reordeno filas y columnas en base al cluster obtenido
+index <- sort(modelo_kmean$cluster, index.return=TRUE)
+tempDist_2 <- tempDist_2[index$ix,index$ix]
+rownames(tempDist_2) <- c(1:nrow(data_pok))
+colnames(tempDist_2) <- c(1:nrow(data_pok))
+
+image(tempDist_2)
+```
+
+Indice de correlación
+```{r}
+#Correlation
+#construyo matriz de correlacion ideal (cada entidad correlaciona 1 con su cluster)
+tempMatrix2 <- matrix(0, nrow = nrow(escal_data_pok2), ncol = nrow(escal_data_pok2))
+tempMatrix2[which(index$x==1), which(index$x==1)]  <- 1
+tempMatrix2[which(index$x==2), which(index$x==2)]  <- 1
+tempMatrix2[which(index$x==3), which(index$x==3)]  <- 1
+tempMatrix2[which(index$x==4), which(index$x==4)]  <- 1
+
+#construyo matriz de disimilitud
+tempDist_22 <- 1/(1+tempDist_2)
+
+#Calcula correlacion 
+cor2 <- cor(tempMatrix2[upper.tri(tempMatrix2)],tempDist_2[upper.tri(tempDist_2)])
+
+print(cor2)
+```
+
+Indice de cohesión y el de separación.
+```{r}
+library(flexclust) # usaremos la distancia implementada en flexclus (dist2) que maneja mejor objetos de diferente tamaño
+escal_data_pok2 <- apply(escal_data_pok2,2,as.numeric)
+ 
+#Cohesion
+withinCluster <- numeric(4)
+for (i in 1:4){
+  tempdata_pok2 <- escal_data_pok2[which(modelo_kmean$cluster == i),]
+  withinCluster[i] <- sum(dist2(tempdata_pok2,colMeans(tempdata_pok2))^2)
+}
+cohesion2 = sum(withinCluster)
+#es equivalente a model$tot.withinss en k-means
+print(c(cohesion2, modelo_kmean$tot.withinss))
+
+#Separation
+meandata_pok2 <- colMeans(escal_data_pok2)
+SSB <- numeric(4)
+for (i in 1:4){
+  tempdata_pok2 <- escal_data_pok2[which(modelo_kmean$cluster==i),]
+  SSB[i] <- nrow(tempdata_pok2)*sum((meandata_pok2-colMeans(tempdata_pok2))^2)
+}
+separation2 = sum(SSB)
+
+print(separation2)
+```
+
+Coeficiente de silueta
+```{r}
+library(cluster)
+
+coefSil2 <- silhouette(modelo_kmean$cluster,dist(escal_data_pok2))
+summary(coefSil2)
+
+#visualizamos el codigo de silueta de cada cluster
+fviz_silhouette(coefSil2) + coord_flip()
+```
+
+Estadistico de Hopkins. 
+```{r}
+library(factoextra)
+
+#Calcula el hopkins statistic 
+res3 <- get_clust_tendency(escal_data_pok2, n = 30, graph = FALSE)
+res4 <- get_clust_tendency(numdata_pok, n = 30, graph = FALSE)
+
+print(res3)
+print(res4)
+```
+Al parecer, resultó peor hacerlo con K=8.
+
+
+
+
+
+
+
+
