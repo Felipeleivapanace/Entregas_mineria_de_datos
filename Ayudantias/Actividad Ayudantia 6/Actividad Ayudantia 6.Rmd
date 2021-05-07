@@ -1,0 +1,268 @@
+
+
+---
+title: "Actividad Ayudantia 6: Clusters Jerárquicos"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Importar Librerias
+```{r}
+library(tidyverse)
+library(cluster)
+library(factoextra)
+library(janitor)
+library("ggdendro")
+```
+# Cargar Datos:
+```{r}
+setwd("C:/Users/Felipe/Documents/GitHub/Entregas_mineria_de_datos/Ayudantias/Actividad Ayudantia 6")
+
+library(readr)
+data <- read_csv("C:/Users/Felipe/Documents/GitHub/Entregas_mineria_de_datos/Ayudantias/Actividad Ayudantia 6/Spotify_Songs.csv")
+summary(data)
+head(data)
+
+```
+
+# Pre Procesamiento de los Datos
+
+## Limpieza Datos:
+
+- Verificar la existencia de valores NA o faltantes
+```{r}
+data[data == ""] <- NA
+
+data %>%  summarise_all(funs(sum(is.na(.))))
+data_pre <- data %>%  filter(!(is.na(track_name)|is.na(track_artist)|is.na(track_album_name)|is.na(duration_ms)))
+
+data_pre %>% summarise_all(funs(sum(is.na(.))))
+
+```
+- Segundo filtrar y remover datos duplicados
+```{r limpieza duplicados}
+data_pre <- data_pre[!duplicated(data_pre$track_id),]
+
+```
+
+- Tercero verificar la existencia de errores en los datos de las observaciones
+```{r limpieza errores}
+
+data_pre$track_popularity <- as.numeric(as.character(data_pre$track_popularity))
+
+data_pre <- data_pre %>%  filter(!(is.na(track_popularity)))
+
+data_pre <- data_pre[!grepl("<U",data_pre$track_name),]
+data_pre <- data_pre[!grepl("<U",data_pre$track_artist),]
+
+data_pre %>% count(duplicated(data_pre$track_name))
+
+data_pre %>% distinct(track_name, .keep_all = TRUE, )
+
+data_pre$duplicate <- duplicated(data_pre[,c("track_name", "track_artist")])
+
+data_dupli <- data_pre %>%  filter(data_pre$duplicate == TRUE) %>% arrange("track_name", "track_popularity", desc(track_popularity))
+
+data_dupli <- data_dupli %>%  distinct(track_name, track_artist, .keep_all = TRUE)
+
+data_pre <- data_pre[!(data_pre$duplicate == TRUE),]
+
+data_pre <- rbind(data_pre, data_dupli)
+
+data_pre$duplicate <- NULL
+
+```
+## Revisar Estructura Datos
+```{r transformar tipo datos}
+data_pre$track_id <- as.character(data_pre$track_id)
+data_pre$track_name <- as.character(data_pre$track_name)
+data_pre$track_artist <- as.character(data_pre$track_artist)
+data_pre$track_album_id <- as.character(data_pre$track_album_id)
+data_pre$track_album_name <-  as.character(data_pre$track_album_name)
+data_pre$playlist_name <- as.character(data_pre$playlist_name)
+data_pre$playlist_id <- as.character(data_pre$playlist_id)
+data_pre$playlist_genre <- as.character(data_pre$playlist_genre)
+data_pre$playlist_subgenre <- as.character(data_pre$playlist_subgenre)
+
+data_pre$danceability <- as.double(as.character(data_pre$danceability))
+data_pre$energy <- as.double(as.character(data_pre$energy))
+data_pre$key <- as.double(as.character(data_pre$key))
+data_pre$loudness <- as.double(as.character(data_pre$loudness))
+data_pre$mode <- as.double(as.character(data_pre$mode))
+data_pre$speechiness <- as.double(as.character(data_pre$speechiness)) 
+data_pre$acousticness <- as.double(as.character(data_pre$acousticness))
+data_pre$instrumentalness <- as.double(as.character(data_pre$instrumentalness))
+data_pre$liveness <- as.double(as.character(data_pre$liveness))
+data_pre$valence <- as.double(as.character(data_pre$valence))
+data_pre$tempo <- as.double(as.character(data_pre$tempo))
+data_pre$duration_ms <- as.double(as.character(data_pre$duration_ms))
+
+data_char <- c("track_id", "track_name", "track_artist", "track_album_id", "track_album_name", "playlist_name", "playlist_id", "playlist_genre", "playlist_subgenre")
+
+data_dou <- c("track_popularity","danceability", "energy", "key", "loudness", "mode", "speechiness", "acousticness", "instrumentalness", "liveness", "valence", "tempo", "duration_ms")
+
+data_pre <- data_pre %>% filter(!(is.na(key)|is.na(danceability)))
+
+```
+## Separar Datos
+```{r separar datos}
+datanum <- data_pre %>% select(data_dou)
+
+datachar <- data_pre %>% select(data_char)
+
+```
+## Escalar Datos
+```{r escalar datos}
+data_sca <- sapply(datanum, scale)
+```
+
+# Procesamiento de los Datos
+
+## Clustering Jerarquico
+
+En esta parte destaco que utilicé 10.000 datos de la data total en "data escalada" dado que es una muy grande cantidad de datos y algunas funciones no se realizan por falta de espacio 
+
+```{r limitar data}
+data_sca <- data_sca[1:10000,]
+```
+
+- Matriz de Distancias
+```{r matriz distancia}
+d = dist(data_sca, method = "euclidean")
+
+hist(d, main = "Histograma Distancia Euclideana")
+```
+
+## Tipo 1: Clustering Aglomerativo
+
+Utilizando la funcion de R base hclust, aplicamos hierarchical clustering, a partir de la matriz de distancias d, y utilizamos el criterio complete linkage
+
+- Complete Model
+```{r complete model}
+set.seed(369)
+
+model_complete <- hclust(d, method = "complete")
+
+summary(model_complete)
+```
+
+- Ward Model
+```{r ward model}
+set.seed(369)
+
+model_ward <- hclust(d, method = "ward.D")
+
+summary(model_ward)
+```
+- Comparacion de los coeficientes de aglomeracion para cada metodo
+```{r coef aglomeracion}
+
+models <- c("complete", "ward")
+names(models) <- c("complete", "ward")
+
+agcoef <- function(x) {
+  agnes(data_sca, method = x)$ac
+}
+
+```
+
+Generamos un dendrograma para visualizar la jerarquia. La libreria 'ggdendro' permite hacer estos diagramas en una sintaxis equivalente a ggplot. 
+
+```{r grafico dendrograma}
+
+ggdendrogram(model_complete, rotate = TRUE, theme_dendro = TRUE) 
+
+```
+
+## Corte del arbol
+
+Aqui tambien tuve que hacer un pequeño ajuste por truncar la data en una etapa anterior.  
+
+Ojo que yo quiero 2 Clusters, por eso ocupé el k=2, de ocupar h=2 me da una cantidad de clasters innecesarios. 
+```{r corte arbol}
+groups <- cutree(model_complete, k = 2)
+table(groups)
+
+data_pre=data_pre[1:10000,]
+datanum=datanum[1:10000,]
+
+data_pre$clust <- as.factor(groups)
+datanum$clust <- as.factor(groups)
+
+fviz_cluster(list(data = data_sca, cluster = groups))
+```
+
+## Caracteristicas de los clusters encontrados
+```{r caracteristicas clusters}
+datanum$clust <- as.numeric(as.character(datanum$clust))
+
+infoclusters <- aggregate(datanum, by=list(cluster=datanum$clust), mean)
+
+infoclusters$clust <- NULL
+
+infoclusters <- infoclusters %>% mutate(duration_min = infoclusters$duration_ms/60000)
+
+infoclusters$duration_ms <- NULL
+
+infoclusters
+```
+
+## Filtro por clusters con mas datos
+```{r filtrar clusters}
+data_c1 <- data_pre %>% filter(data_pre$clust == 1)
+
+data_c2 <- data_pre %>% filter(data_pre$clust == 2)
+```
+
+## Desde aqui en adelante solo se trabaja con c2 dado que necesito pocos datos para ocupar el cluster divisivo, consume muchos recursos de hardware ese. 
+```{r cluster_dos}
+data_c2$clust <- NULL
+
+datanumc2 <- data_c2 %>% select(data_dou) %>%  scale() %>%  as_tibble()
+
+```
+
+Ahora a C2 le aplicaremos un clustering divisivo
+
+## Tipo 2: Clustering Divisivo
+```{r clustering divisivo}
+modelo_div <- diana(datanumc2)
+
+modelo_div$dc
+
+pltree(modelo_div, cex = 0.8, hang = -1.5, main = "Dendrogram of diana")
+```
+
+## Cantidad Clusters seleccionados es 2 dentro del cluster ya seleccionado por el metodo anterior
+```{r division arbol}
+groupsc2 <- cutree(modelo_div, k = 2)
+
+table(groupsc2)
+
+data_c2$clust <- as.factor(groupsc2)
+
+fviz_cluster(list(data = datanumc2, cluster = groupsc2))
+
+datanumc2$clust <- as.factor(groupsc2)
+```
+
+## Caracteristicas Clusters encontrados
+```{r caracteristicas cluster dos}
+datanumc2$clust <- as.numeric(as.character(datanumc2$clust))
+
+infoclustersc2 <- aggregate(datanumc2, by=list(cluster=datanumc2$clust), mean)
+
+infoclustersc2$clust <- NULL
+
+infoclustersc2 <- infoclustersc2 %>% mutate(duration_min = infoclustersc2$duration_ms/60000)
+
+infoclustersc2$duration_ms <- NULL
+
+infoclustersc2
+
+```
+
+Y asi es como utilicé un modelo para generar 2 grandes clusters y luego a uno de esos clusters lo volví a dividir en otros 2 clusters pero utilizando otro modelo. 

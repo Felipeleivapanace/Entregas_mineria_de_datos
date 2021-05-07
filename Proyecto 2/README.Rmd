@@ -1,0 +1,315 @@
+---
+title: "Entrega Proyecto 2 "
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Objetivo 
+
+El objetivo principal de este encargo es crear un programa computacional que permita crear una lista de  reproducción de 3 horas de duración basándose en alguna canción de referencia. La base de datos incluye 447.622 canciones, con 36 de las variables descritas en la documentación de la API.
+
+## Importar Librerias
+
+```{r}
+library(tidyverse)
+library(cluster)
+library(factoextra)
+library(janitor)
+library(lattice)
+library(stats4)
+library(flexclust)
+library("ggdendro")
+```
+
+## Importar datos
+
+```{r}
+setwd("C:/Users/Felipe/Documents/GitHub/Entregas_mineria_de_datos/Proyecto 2")
+load(file="beats.RData")
+
+summary(beats)
+head(beats)
+```
+## Elección de variables
+
+De las 36 columnas que entrega la base de datos, muchass de ellas no son necesarias ni utiles para el trabajo. Se procede a eliminar las columnas de:
+- Artist_id: El nombre del artista entrega mas información que su ID dentro de la base de datos y el ID es mas dificil de analizar visualmente que el nombre
+- Album_id: El id del album no es relevante para el trabajo. 
+- Album_type: Saber que la canción esta en un album no aytuda a identificiar similitudes entre las canciones
+- Album_release_day: Al ser una información demasiado especifica, es preferible utilizar solo el año de la canción para establecer similitudes. 
+- Album_release_day_presition: No aporta información ademas de especificar que la canción fue liberada en un dia
+
+- Track_id: No aporta info
+- Analysis_url: No aporta info para buscar semejanzas 
+- Time_signature:
+- Disc_number: 
+- Explicit:
+- Track_href: 
+- is_local:
+- Track_preview_url:
+- Track_number:
+- Type:
+- Track_url:
+- External_url_spotify:
+- 
+
+```{r}
+beats[,2:5] = NULL
+beats[,3] = NULL
+beats[,14:17] = NULL
+beats[,15:17] = NULL
+beats[,16:20] = NULL
+
+```
+
+## Limpieza de datos
+
+#Busqueda de datos faltantes
+
+En primer lugar, para las observaciones que tengan datos faltantes, le asignamos el valor NA para eliminarlos en el siguiente paso. Luego, se revisa que no queden valores nulos. 
+Podemos observar que solo la columna "album_release_year" cuenta con datos faltantes, por lo cual solo se trabaja esa columna. 
+Luego se puede evidenciar que el dataframe "data_lista", el cual representa toda la data que se utilizará en el entregable no contiene datos faltantes. 
+```{r}
+beats[beats == ""] <- NA
+beats %>%  summarise_all(funs(sum(is.na(.))))
+data_semi_lista <- beats %>% filter(!(is.na(beats$album_release_year)))
+data_semi_lista %>% summarise_all(funs(sum(is.na(.))))
+
+
+```
+
+#Busqueda de datos duplicados
+
+ESTO CREO QUE ESTA FUNCIONANDO MAL PORQUE ELIMINA MUCHAS VARIABLES
+```{r}
+data_lista <- data_semi_lista[!duplicated(data_semi_lista$track_name),]
+data_lista = data_lista[1:1000,]
+
+
+```
+
+##Analisis de Clusters
+
+Se necesita identificar las variables que definen el comportamiento de las canciones para luego evaluar su semejanza o difeencia, por lo cual se utilizaran las variables:
+- danceability
+- energy
+- key
+- loudness
+- mode
+- spechiness
+- acusticness
+- instrumentalness
+- liveness
+- valance
+- tempo
+
+Todas las variables ya son numericas por lo cual es mas facil escalarlas 
+
+#Escalar Datos
+
+La intención de escalar los datos es que estos se encuentren centrados en el 0 y con desviación estandar 1 
+
+Dado que la función "scale" entrega el resultado como una matriz, se utiliza el argumento "as_tibble" para que el resultado sea un data frame. 
+```{r}
+var_a_utilizar = data_lista[,3:13]
+data_escalada=scale(var_a_utilizar) %>% as_tibble()
+summary(data_escalada)
+
+```
+#Implementacion de K Means
+
+En primer lugar se planea identificar la mejor combinación a partir de la "regla del codo" y del "coeficiente de silueta". Con la regla del codo Asi se puede ver como evoluciona la suma de cuadrados intra-cluster en la medida que aumentamos el numero de k. Se deveria poder observar como disminuye la cohesión mientras aumenta el numero de klusters.Por otro lado, el coeficiente de silueta tambien ayuda a determinar el numero optimo de agrupamientos de clusters. 
+
+```{r}
+SSinterior <- numeric(30)
+
+for(k in 1:30){
+  modelo <- kmeans(data_escalada, centers = k)
+  SSinterior[k] <- modelo$tot.withinss
+}
+
+plot(SSinterior)
+
+```
+# Utilizamos el coeficiente de silueta para encontrar el mejor valor de K (Plagio al profe)
+```{r}
+
+coefSil=numeric(20)
+for (k in 2:20){
+  modelo <- kmeans(data_escalada, centers = k)
+  temp <- silhouette(modelo$cluster,dist(data_escalada))
+  coefSil[k] <- mean(temp[,3])
+}
+tempDF=data.frame(CS=coefSil,K=c(1:20))
+
+ggplot(tempDF, aes(x=K, y=CS)) + geom_line() + scale_x_continuous(breaks=c(1:30))
+
+
+```
+
+A partir de la regla del codo y del coeficiente de silueta se determina que el mejor K es el valor 3 dado que presenta un buen indice de cohesión. 
+Se crea la variable "clus" para guardar el resultado del modelo
+
+BUSCAR AQUI LA MEJOR COMBINACION DE VARIABLES QUE MUESTREN EL CLUSTER
+```{r}
+
+modelo_kmeans <- kmeans(data_escalada, centers = 3)
+
+
+data_escalada$clus <- modelo_kmeans$cluster %>% as.factor()
+
+ggplot(data_escalada, aes(energy,loudness, color=clus)) +  geom_point(alpha=0.5, show.legend = F) +  theme_bw()
+
+```
+
+#Evaluación de K Means
+
+De acuerdo al estadistico de Hopkins, el cual mide la tendencia de los Klusters. Se realzia con una cantidad de 20 muestras 
+
+Luego se validará mediante el limite de Cohesión y de separación 
+
+No se realiza un estudio del indice de correlación dado que en la matriz de correlación  el sistema indica que "no se puede ubicar un vector de tamaño  244.2 Gb"
+
+```{r}
+
+#Estadistico de Hopkins
+res <- get_clust_tendency(var_a_utilizar, n = 20, graph = FALSE)
+print(res)
+
+data_escalada <- apply(data_escalada,2,as.numeric)
+ 
+#Cohesion
+print(modelo_kmeans$tot.withinss)
+
+#Separation
+meanData <- colMeans(data_escalada)
+SSB <- numeric(3)                     #Este valor y el que esta en el for DEPENDEN DE LA CANTIDAD DE CLUSTERS QUE DETERMINA EL MODELO. 
+for (i in 1:3){
+  tempData <- data_escalada[which(modelo_kmeans$cluster==i),]
+  SSB[i] <- nrow(tempData)*sum((meanData-colMeans(tempData))^2)
+}
+separation = sum(SSB)
+
+print(separation)
+
+#Coeficiente de silueta
+coefSil <- silhouette(modelo_kmeans$cluster,dist(data_escalada))
+summary(coefSil)
+
+#visualizamos el codigo de silueta de cada cluster
+fviz_silhouette(coefSil) + coord_flip()
+
+
+```
+Un valor alto en el estadistico de Hopkins demuestra que existen agrupaciones de datos 
+
+El valor de la cohesión indica que
+
+El valor de la separación indica que
+
+A traves del coeficiente de silueta se determino que en el tercer cluster hay mas del triple de elementos que en el resto y los coeficientes de silueta para cada Cluster son 0,33, 0,05 y 0,28 
+
+Hay un cluster que presenta datos atipicos dado que tiene valores negativos en el grafico. 
+
+Debido a lo anterior, el mejor cluster para elegir es (TANTO TANTO)
+
+#Playlist a partir de K Means
+
+```{r}
+#data_escalada_kmeans=as.data.frame(data_escalada)
+
+#lista_kmeans= list(data_escalada_kmeans$clus == 1)
+#print(lista_kmeans)
+
+```
+## Clusters jerarquicos
+
+Se necesita la matriz de distancias entre las entidades, utilizando la funcion 'dist' que calcula las distancias euclideandas
+
+```{r }
+
+#Distancia euclideana
+distancia_Jerarquicos = dist(data_escalada)
+
+hist(distancia_Jerarquicos)
+
+```
+
+Utilizando la funcion de R base hclust, aplicamos hierarchical clustering, a partir de la matriz de distancias d, y utilizamos el criterio complete linkage
+```{r}
+
+modelo_jerarquico = hclust(distancia_Jerarquicos, method="complete") 
+
+summary(modelo_jerarquico)
+
+  #Tipos de HCLUST
+ #hclust(d, method="ward.D") 
+ #hclust(d, method="ward.D2") 
+ #hclust(d, method="single")
+ #hclust(d, method="average") 
+ #hclust(d, method="mcquitty") 
+ #hclust(d, method="median") 
+ #hclust(d, method="centroid")
+
+```
+
+
+Generamos un dendrograma para visualizar la jerarquia. La libreria 'ggdendro' permite hacer estos diagramas en una sintaxis equivalente a ggplot. 
+
+```{r}
+
+ggdendrogram(modelo_jerarquico, rotate = TRUE, theme_dendro = TRUE) 
+
+```
+
+Era esperable que el encuento de la mayoría de la data fuera en un valor cercano a 3 dado que el histograma presentaba una simetria similar. 
+
+Los arboles se pueden cortar en algun punto segun el parametro de altura o heigth 'h'. 
+
+Utilizaremos el numero de clusters para comparar diferentes puntos de corte de la jerarquia y asi elegir el mejor parametro de altura. 
+
+```{r}
+
+res <- tibble("h" = quantile(distancia_Jerarquicos, probs  = (1:100)/100), n = 0)
+
+for (i in 1:100){
+  groups <- cutree(modelo_jerarquico, h = res$h[i])  
+  res$n[i] <- groups %>% unique() %>% length()
+}  
+
+ggplot(res, aes(h, n)) + geom_point() +  scale_x_log10() +  scale_y_log10()
+
+```
+A una mayor cantidad de h o altura, disminuye la cantidad de clusters 
+
+# Utilizamos el coeficiente de silueta para encontrar el mejor valor de K (Plagio al profe)
+```{r}
+
+#coefSil=numeric(20)
+#for (k in 2:20){
+ # modelo <- kmeans(data_escalada, centers = k)
+ # temp <- silhouette(modelo$cluster,dist(data_escalada))
+ # coefSil[k] <- mean(temp[,3])
+#}
+#tempDF=data.frame(CS=coefSil,K=c(1:20))
+
+#ggplot(tempDF, aes(x=K, y=CS)) + geom_line() + scale_x_continuous(breaks=c(1:30))
+
+
+```
+
+Se determino que los cluster a utilizar son TANTO TANTO por lo tanto deseo una altura de aproximadamente TANTO TANTO 
+
+```{r}
+
+groups <- cutree(modelo_jerarquico, h = 6)  
+coefsil <- silhouette(groups, distancia_Jerarquicos)
+groups %>% unique() %>% length()
+summary(coefsil)
+
+```
+
+Existen 20 clusters bajo esta modalidad
