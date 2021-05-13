@@ -1,5 +1,5 @@
 ---
-title: "Entrega Proyecto 2 "
+title: "Entrega Proyecto 2"
 output: github_document
 ---
 
@@ -7,13 +7,25 @@ output: github_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Objetivo 
+# Objetivo 
 
-El objetivo principal de este encargo es crear un programa computacional que permita crear una lista de  reproducción de 3 horas de duración basándose en alguna canción de referencia. La base de datos incluye 447.622 canciones, con 36 de las variables descritas en la documentación de la API de Spotify
+El objetivo principal de este entregable es crear un programa computacional que permita crear una lista de  reproducción de 3 horas de duración basándose en alguna canción de referencia. La base de datos incluye 447.622 canciones, con 36 de las variables descritas en la documentación de la API de Spotify.
+
+El procedimiento consiste en generar una muestra aleatoria de la base de datos descrita, a la cual se le realizará una clusterización mediante K medias con una cantidad de clusters seleccionado por el estudio del coeficiente de silueta. Luego, se generará una nueva base de datos con las canciones que pertenecen al cluster con mayor agrupación resultante de la iteración anterior, al cual nuevamente se le realizará una clusterización mediante el algoritmo K Medias con una cantidad de cluster determinado por el coeficiente de siluet apliado a la nueava data seleccionada. Por ultimo, las canciones que pertenecen al cluster con mejor agrupación obtenido por esta nueva iteración, se les realizará una ultima clusterización mediante el algoritmo de K Medias con una cantidad de clusters determinado por el coeficiente de silueta apliado a la nueava data seleccionada.
+
+Las canciones resultantes de esta tercera iteración corresponderan a las canciones que podrían ser incluidas en la playlist. A continuación, de manera aleatoria se iran seleccionando canciones pertenecientes a este conjunto de canciones hasta completar las tres horas de duración requeridas. 
+
+Por ultimo, dentro de esta nueva pequeña agrupación de canciones, se seleccionará una de manera aleatoria y se conncluirá que el resto de canciones que esta ultima acción seleccionó corresponden a una playlist con canciones similares a la canción elegida. 
+
+La idea detras del algoritmo de K Medias es agrupar las canciones que presenten una similitud en variables numericas que describen el comportamiento de la canción, es decir, seleccionar canciones similares en su composición y sonido. 
+
+Es importante destacar que el codigo es totalmente autonomo, es decir, es capaz de adaptarse a cualquier conjunto aleatorio de canciones que se determinan y es capaz de decidir automaticamente la cantidad de clusters y el mejor cluster obtenido por cada iteración. 
 
 ## Importar Librerias
 
-```{r}
+Se incorporarán al algoritmo las librerias que contienen las funciones que se utilizaran durante el funcionamiento del algoritmo.  
+
+```{r, message=FALSE}
 library(tidyverse)
 library(cluster)
 library(factoextra)
@@ -22,12 +34,14 @@ library(lattice)
 library(stats4)
 library(flexclust)
 library(ggdendro)
+library(knitr)
 ```
-
 ## Importar datos
 
+Los datos son asignados y corresponden al csv denominado "beats", el cual contiene 447.622 canciones, con 36 de las variables descritas en la documentación de la API de Spotify. 
+
 ```{r}
-#setwd("C:/Users/Felipe/Documents/GitHub/Entregas_mineria_de_datos/Proyecto 2")
+setwd("C:/Users/Felipe/Documents/GitHub/Entregas_mineria_de_datos/Proyecto 2")
 load(file="beats.RData")
 
 summary(beats)
@@ -35,38 +49,39 @@ summary(beats)
 
 ## Elección de variables
 
-De las 36 columnas que entrega la base de datos, muchas de ellas no son necesarias ni utiles para el trabajo. Se procede a eliminar las columnas de:
+De las 36 columnas que entrega la base de datos, muchas de ellas no son necesarias ni utiles para crear una playlist. Se procede a eliminar las columnas de:
 
-- Artist_id: El nombre del artista es mas relevante para el objetivo del trabajo dado que se pretende analizar la playlist con un analisis visual y el nombre es mas amigable que el id para esto. 
-- Album_id: El nombre del album es mas relevante para el objetivo del trabajo dado que se pretende analizar la playlist con un analisis visual y el nombre es mas amigable que el id para esto. 
+- Artist_id: El nombre del artista es mas relevante para el objetivo del trabajo y representa la misma información pero de una manera visibilemente mas agradable.  
+- Album_id: El nombre del album es mas relevante para el objetivo del trabajo y representa la misma información pero de una manera visibilemente mas agradable. 
 - Album_type: Saber que la canción esta en un album no aytuda a identificiar similitudes entre las canciones
--Album release year:
-- Album_release_day: Al ser una información demasiado especifica, es preferible utilizar solo el año de la canción para establecer similitudes. 
+- Album release year: A pesar de que una similitud en las canciones puede ser el año de creación, esta no corresponde a una similitud en la composición de la canción por lo cual no se utilizará esta variable.
+- Album_release_day:Es una información demasiado especifica que no ayuda a generar similitudes en la composición o estilo de las canciones.  
 - Album_release_day_presition: No aporta información ademas de especificar que la canción fue liberada en un dia
--mode:
-- Track_id: El nombre de la cancion es mas relevante para el objetivo del trabajo dado que se pretende analizar la playlist con un analisis visual y el nombre es mas amigable que el id para esto. 
-- Analysis_url: No aporta info para buscar semejanzas 
-- Time_signature:No aporta info para buscar semejanzas entre canciones en relación a su composición musical
+-mode: Representa un valor binario que no es relevante para generar similitudes en la composición de las canciones.
+- key: No se encontró información sobre lo que aporta esta variable, por lo cual se deside eliminarla.
+- Track_id: El nombre de la cancion es mas relevante para el objetivo del trabajo y representa la misma información pero de una manera visibilemente mas agradable. 
+- Analysis_url: No aporta informacion para buscar semejanzas entre las canciones en terminos de su composición o estilo musical.   
+- Time_signature:No aporta informacion para buscar semejanzas entre canciones en relación a su composición musical.
 - Disc_number: No aporta info para buscar semejanzas entre canciones en relación a su composición musical dado que es una información que apunta a la historia del artista. 
-- Explicit: No es una información relevante para establecer semejanzas entre canciones.
-- Track_href:  No es una información relevante para establecer semejanzas entre canciones.
-- is_local: No es una información relevante para establecer semejanzas entre canciones.
-- Track_preview_url: No es una información relevante para establecer semejanzas entre canciones.
-- Track_number:  No es una información relevante para establecer semejanzas entre canciones.
-- Type: No es una información relevante para establecer semejanzas entre canciones.
-- Track_url: No es una información relevante para establecer semejanzas entre canciones.
-- External_url_spotify: No es una información relevante para establecer semejanzas entre canciones.
--Key name:
--mode name:
-key mode:
+- Explicit: No aporta informacion para buscar semejanzas entre las canciones en terminos de su composición o estilo musical. 
+- Track_href:  No aporta informacion para buscar semejanzas entre las canciones en terminos de su composición o estilo musical. 
+- is_local: No aporta informacion para buscar semejanzas entre las canciones en terminos de su composición o estilo musical. 
+- Track_preview_url: No aporta informacion para buscar semejanzas entre las canciones en terminos de su composición o estilo musical. 
+- Track_number:  No aporta informacion para buscar semejanzas entre las canciones en terminos de su composición o estilo musical. 
+- Type: No aporta informacion para buscar semejanzas entre las canciones en terminos de su composición o estilo musical. 
+- Track_url: No aporta informacion para buscar semejanzas entre las canciones en terminos de su composición o estilo musical. 
+- External_url_spotify: No aporta informacion para buscar semejanzas entre las canciones en terminos de su composición o estilo musical. 
+- Key name:No aporta informacion para buscar semejanzas entre las canciones en terminos de su composición o estilo musical. 
+- mode name:No aporta informacion para buscar semejanzas entre las canciones en terminos de su composición o estilo musical. 
+- key mode:No aporta informacion para buscar semejanzas entre las canciones en terminos de su composición o estilo musical. 
 
 ```{r}
-beats=beats[,c(1,8:11,13:18,19,23,27,33)]
+beats=beats[,c(1,8:9,11,13:18,19,23,27,33)]
 ```
 
-##Selección de Data
+## Selección de Data
 
-Debido a la gran cantidad de datos, algunas funciones y graficas saturan las capacidades del computador, por lo cual es necesario realizar una muestra. El procedimiento consiste en generar una muestra aleatoria simple sin reemplazo a traves de la función "sample()" con una cantidad de 20.000 datos. Es necesario validar que esta muestre represente a la base de datos asignada por lo cual se compararan las estadisticas de estas agrupaciones de datos a traves de la función "summary". 
+Debido a la gran cantidad de datos, algunas funciones y graficas saturan las capacidades de procesamiento del computador, por lo cual se decidió implementar una muestra. El procedimiento consiste en generar una muestra aleatoria simple sin reemplazo a traves de la función "sample()" con una cantidad de 20.000 datos. Es necesario validar que esta muestre represente a la base de datos asignada por lo cual se compararan las estadisticas de esta SELECCION de datos con la data original a traves de la función "summary". 
 
 ```{r}
 sample_index <- sample(1:nrow(beats),20000, replace = F)
@@ -74,42 +89,40 @@ sample_data = beats[sample_index,]
 
 summary(sample_data)
 ```
+
 Lo importante es comparar las variables numericas dado que estas son las variables elegidas.Como se puede observar, en ninguno de los parametros comparados (Minimo,Maximo,Median,Mean,Cuartiles) las diferencias superan las magnitudes del 0,01 por lo cual se asume que la muestra seleccionada reprsenta a la data total dado que son similares.
 
-## Limpieza de datos
+# Limpieza de datos
 
-#Busqueda de datos faltantes
+## Busqueda de datos faltantes
 
-En primer lugar, para las observaciones que tengan datos faltantes, le asignamos el valor NA para eliminarlos en el siguiente paso. Luego, se revisa que no queden valores nulos. 
-Podemos observar que solo la columna "album_release_year" cuenta con datos faltantes, por lo cual solo se trabaja esa columna. En el primer "sumarise_all" se muestran los NA encontrados por cada columna y en la segunda iteración de este comando se evidencia que la data seleccionada ya no contiene elementos faltantes. 
+En primer lugar, se revisa si hay casos faltantes. Para las observaciones que tengan datos faltantes, se le asigna el valor NA para eliminarlos en el siguiente paso. Luego, se revisa que no queden valores nulos. Tal como se observa a continuación, no se encontraron datos faltantes en la muestra seleccionada.  
+
+En iteraciones previas a la entrega final se determinó que solo la columna "album_release_year" cuenta con datos faltantes, pero no se va a trabajar con esa columna. De haber utilizado esa variable, para eliminar los datos faltantes se debe ocupar el comando "sample_data <- sample_data %>% filter(!(is.na(sample_data$album_release_year)))" y de esta manera se excluyen de la base de datos las filas que en esa determinada columna cuentten con un NA.  
 
 ```{r}
 sample_data[sample_data == ""] <- NA
 sample_data %>%  summarise_all(funs(sum(is.na(.))))
-#sample_data <- sample_data %>% filter(!(is.na(sample_data$album_release_year)))
-sample_data %>% summarise_all(funs(sum(is.na(.))))
-
-
 ```
 
-#Busqueda de datos duplicados
+## Busqueda de datos duplicados
 
-Asumiendo que la base de datos cuenta con una perfecta identificación de cada canción, el siguente algoritmo pretende buscar si dentro de la muestra seleccionada se encuentran canciones con su mismo ID. En caso de ser encontradas, se eliminan debido a que se considera una canción duplicada. 
+Asumiendo que la base de datos cuenta con una perfecta identificación de cada canción, el siguente comando pretende buscar si dentro de la muestra seleccionada se encuentran canciones con su mismo ID. En caso de ser encontradas, se eliminan debido a que se considera una canción duplicada. 
 
-Data actualizada pretende mantener un data frame sin escalar para luego ocupar las duraciones de las canciones reales, es decir, sin ser modificadas. 
+La variable "aata actualizada" pretende mantener un data frame sin escalar para luego ocupar las duraciones de las canciones reales, es decir, con datos identicos a la base de datos sin alguna modificación.
+
 ```{r}
 data_lista = sample_data[!duplicated(sample_data$track_id),]
 
 data_actualizada=data_lista
-
 ```
 
-##Analisis de Clusters
+# Analisis de Clusters
 
 Se necesita identificar las variables que definen el comportamiento de las canciones para luego evaluar su semejanza o difeencia, por lo cual se utilizaran las variables:
+
 - danceability
 - energy
-- key ?????????
 - loudness
 - spechiness
 - acusticness
@@ -117,26 +130,27 @@ Se necesita identificar las variables que definen el comportamiento de las canci
 - liveness
 - valance
 - tempo
-- duracicon_ms
 
 Todas las variables ya son numericas por lo cual es mas facil escalarlas 
 
-#Escalar Datos
+## Escalar Datos
 
-La intención de escalar los datos es que estos se encuentren centrados en el 0 y con desviación estandar 1 
+La intención de escalar los datos es que estos se encuentren centrados en el 0 y con desviación estandar 1. 
 
 Dado que la función "scale" entrega el resultado como una matriz, se utiliza el argumento "as_tibble" para que el resultado sea un data frame. 
+
 ```{r}
-var_a_utilizar_en_clusters = data_lista[,c(2:11,13)]
+var_a_utilizar_en_clusters = data_lista[,c(2:10)]
 data_escalada_1=scale(var_a_utilizar_en_clusters) %>% as_tibble()
 summary(data_escalada_1)
 
 ```
+
 Se puede observar que la data se encuentra escalada dado que
 
-#Implementacion de K Means
+## Implementacion de K Means
 
-En primer lugar se planea identificar la mejor combinación a partir de la "regla del codo" y del "coeficiente de silueta". Con la regla del codo Asi se puede ver como evoluciona la suma de cuadrados intra-cluster en la medida que aumentamos el numero de k. Se deveria poder observar como disminuye la cohesión mientras aumenta el numero de klusters.Por otro lado, el coeficiente de silueta tambien ayuda a determinar el numero optimo de agrupamientos de clusters. 
+En primer lugar se planea identificar la mejor elecion de cluster a partir de la "regla del codo" y del "coeficiente de silueta". De esta manera se pretende ver como evoluciona la suma de cuadrados intra-cluster en la medida que se aumenta el numero de clusters elegidos. Se deveria poder observar como disminuye la cohesión mientras aumenta el numero de klusters. Por otro lado, el coeficiente de silueta tambien ayuda a determinar el numero optimo de agrupamientos de clusters. 
 
 ```{r}
 vector_codo_1 <- numeric(30)
@@ -147,13 +161,14 @@ for(k_codo_iteracion_1 in 1:30){
 }
 
 plot(vector_codo_1)
-
 ```
-A simple vista no queda muy claro cual es el valor que genera el "codo" o quiebre en la recta por lo cual se complementa con el coeficiente de silueta.
 
-# Coeficiente de silueta 
+A simple vista no queda muy claro cual es el valor que genera el "codo" o quiebre en la tendencia por lo cual se complementa con el coeficiente de silueta, el cual si determina de manera precisa cual es la mejor elección de clusters dado que detecta cual es el valor con mayor cohesión. 
 
-Se utiliza el coeficiente de silueta para determinar el mejor valor de K. 
+## Coeficiente de silueta 
+
+Se utiliza el coeficiente de silueta para determinar el mejor valor de K. Ademas, dentro de la ciclo "for" se agrega una condición "if" que permite ir guardando el valor de cluster K que presentó el valor de cohesión mas alto durante el ciclo para luego utilizar ese valor en la iteración del algoritmo de K Means. 
+
 ```{r}
 vector_silueta_1=numeric(20)
 Buffer_1 = 0
@@ -170,49 +185,50 @@ for (k_silueta_iteracion_1 in 2:20){
 }
 tempDF_1=data.frame(CS=vector_silueta_1,K=c(1:20))
 
-
 ggplot(tempDF_1, aes(x=K, y=CS)) + geom_line() + scale_x_continuous(breaks=c(1:30))
-
 ```
+# Implementación de K Means Primera iteración 
 
-A partir de la regla del codo y del coeficiente de silueta se determina que el mejor K es el valor 3 dado que presenta un buen indice de cohesión. 
-Se crea la variable "clus" para guardar el resultado del modelo
+Se crea el modelo de K Means sobre la data elegida y con la cantidad de clusters almacenado en la variable "elección_k_iteracion_1", la cual contiene la mejor cantidad de clusters para utilizar en el modelo de K Means. A traves del modelo se almacena en el data frame "data_actualizada" el valor del cluster al cual pertenece cada una de las canciones a partir de esta primera iteración del modelo.
 
-##Implementación de Kmeans Primera iteración 
-BUSCAR AQUI LA MEJOR COMBINACION DE VARIABLES QUE MUESTREN EL CLUSTER
+El resultado se representa a traves del siguente Plot, sin embargo, es importante mencionar que esta es una de las tantas posibles combinaciones de variables que ilustran la agrupación de Cluster resultante de esta iteración. 
+
 ```{r}
-
 modelo_k_means_1 <- kmeans(data_escalada_1, centers = elección_k_iteracion_1)
 
 data_escalada_1$clus_iteracion_1 <- modelo_k_means_1$cluster %>% as.factor()
 data_actualizada$clus_iteracion_1 <- modelo_k_means_1$cluster %>% as.factor()
 
-ggplot(data_escalada_1, aes(energy,loudness, color=clus_iteracion_1 )) +  geom_point(alpha=0.5, show.legend = F) +  theme_bw()
-
+ggplot(data_escalada_1, aes(energy,danceability, color=clus_iteracion_1 )) +  geom_point(alpha=0.5, show.legend = F) +  theme_bw()
 ```
 
-#Evaluación de K Means
+## Evaluación de K Means
 
-De acuerdo al estadistico de Hopkins, el cual mide la tendencia de los Klusters. Se realzia con una cantidad de 20 muestras 
+De acuerdo al estadistico de Hopkins, el cual mide la tendencia de los Klusters. Se realzia con una cantidad de 20 muestras. Luego se validará mediante el limite de Cohesión y de separación. 
 
-Luego se validará mediante el limite de Cohesión y de separación 
+Se evita la evaluación visual dado que el algoritmo funciona con numeros generados aleatoriamente, es decir, en cada iteración se genera una difernete agrupación y cantidad de cluster, a los cuales el algoritmo por su cuenta debe decidir cual es el mejor. 
 
-No se realiza un estudio del indice de correlación dado que en la matriz de correlación  el sistema indica que "no se puede ubicar un vector de tamaño  244.2 Gb"
-
-Se evita la evaluación visual dado que el algoritmo funciona con numeros generados aleatoriamente y la idea es que para cada iteración del algoritmo, este mismo determine cual es el mejor Cluster
+En primer lugar tenemos el estadistico de Hopkins:
 
 ```{r}
-
-#Estadistico de Hopkins
 Hopkins_1 <- get_clust_tendency(var_a_utilizar_en_clusters, n = 20, graph = FALSE)
-print(Hopkins_1)
+Hopkins_1
+```
 
+Un valor alto en el estadistico de Hopkins demuestra que existen agrupaciones en los datos. 
+
+Luego se estudia la Cohesión:
+
+```{r}
 data_escalada_1 <- apply(data_escalada_1,2,as.numeric)
+modelo_k_means_1$tot.withinss
+```
 
-#Cohesion
-print(modelo_k_means_1$tot.withinss)
+Un alto valor en la cohesion indica que tan cercanos se encuentran los integrantes de un determinado  cluster. Se pretende que este valor sea alto. 
 
-#Separation
+A continuación se estudia la Separación: 
+
+```{r}
 meanData_1 <- colMeans(data_escalada_1)
 SSB_1 <- numeric(elección_k_iteracion_1) #Este valor y el que esta en el for DEPENDEN DE LA CANTIDAD DE CLUSTERS QUE DETERMINA EL MODELO. 
 for (i_1 in 1:elección_k_iteracion_1){
@@ -220,33 +236,36 @@ for (i_1 in 1:elección_k_iteracion_1){
   SSB_1[i_1] <- nrow(tempData_1)*sum((meanData_1-colMeans(tempData_1))^2)
 }
 separation_1 = sum(SSB_1)
-
-print(separation_1)
-
-#Coeficiente de silueta
-coefSilueta_1 <- silhouette(modelo_k_means_1$cluster,dist(data_escalada_1))
-summary(coefSilueta_1)
-
-#visualizamos el codigo de silueta de cada cluster
-fviz_silhouette(coefSilueta_1) + coord_flip()
+separation_1
 ```
-Un valor alto en el estadistico de Hopkins demuestra que existen agrupaciones en los datos.  
-
-Un alto valor en la cohesion indica que tan cercanos se encuentran los integrantes de un determinado  cluster. Se pretende que este valor sea alto. 
 
 El valor de la separación mide que tan alejados se encuentran los clusters frente a otros clusters. 
 
+Y finalmente se evalua y grafica el coeficiente de silueta: 
+
+```{r}
+coefSilueta_1 <- silhouette(modelo_k_means_1$cluster,dist(data_escalada_1))
+summary(coefSilueta_1)
+fviz_silhouette(coefSilueta_1) + coord_flip()
+```
+
 El análisis de siluetas mide qué tan bien se agrupa una observación y estima la distancia media entre los clústeres. Mientras mas grande sea el ancho medio de las siluetas, mejor agrupados se encuentran.
 
-Debido a que la primera iteración del algoritmo K Means no genera clusters con caracteristicas que demuestran una semejanza alta, se decide tomar el mejor Cluster de la primera iteración de K Means y volver a generar Clusters a partir de la data de este cluster.
+Debido a que la primera iteración del algoritmo K Means no genera clusters con caracteristicas que demuestran una semejanza alta, se decide tomar el mejor Cluster de la primera iteración de K Means y volver a generar Clusters a partir de la data de este cluster. Se determina que "el mejor cluster" es aquel que tenga una mayor agrupación de datos. 
 
-##Segunda iteración K Means
+# Segunda iteración K Means
 
-En primer lugar se genera un nuevo Data Frame con las canciones que en la iteración anterior fueron seleccionados en el mejor cluster. 
+## Eleccion del mejor cluster de iteración pasada 
 
-#Eleccion del mejor cluster de iteración pasada 
+En primer lugar, se genera un nuevo Data Frame con las canciones que en la iteración anterior fueron seleccionados en el mejor cluster. Para lograr esto se debe encontrar cual fue el mejor cluster y por ende se utiliza el siguente codigo, el cual finaliza con la elección del mejor cluster en la variable "variable_4_anexa_para_seleccionar_cluster_1". 
+
+Su funcionamiento es calcular de manera mecanica la columna que el grafico anterior expone como "ave.sil.wwidt". Esta variable indica la agrupación en promedio que tuvo cada cluster. Para lograr este resultado, se recorre toda la variable "CoefSilueta_1", la cual contiene la agrupación y el cluster al cual cada cancón pertenece. Almacenando cada uno de estos valores por cada cluster y luego dividiendo por la cantidad de canciones que pertenecen a ese cluster se obtiene el valor en estudio. Para finalizar, se utiliza la segunda condición "if" para guardar el valor del cluster que presentó el mayor valor de agrupación. 
+
+Finalmente, en "data_iteracion_2" se almacenan las canciones presentes en "data_actualizada" que fueron seleccionadas en el cluster seleccionado en la itetación de K Medias anterior. 
 
 Si no pongo coefSilueta_1[,1] recorre tres veces la length de la variables porque esta tiene 3 columnas
+
+En "data_iteracion_2" selecciono las canciones que en "data_actualizada" pertenecen al cluster con mejor agrupación a partir de la primera iteración del algoritmo de K Medias. 
 
 ```{r}
 variable_1_anexa_para_seleccionar_cluster_1= 0
@@ -263,7 +282,6 @@ for(k_silueta_1 in 1:elección_k_iteracion_1){
         }
     } 
     variable_2_anexa_para_seleccionar_cluster_1=variable_1_anexa_para_seleccionar_cluster_1/contador_anexa_para_seleccionar_cluster_1     
-    print(variable_2_anexa_para_seleccionar_cluster_1) ##Esto solo es para validar que estoy calculando lo mismo que arriba
     
     if(variable_2_anexa_para_seleccionar_cluster_1 > variable_3_anexa_para_seleccionar_cluster_1){
        variable_3_anexa_para_seleccionar_cluster_1 = variable_2_anexa_para_seleccionar_cluster_1
@@ -274,24 +292,33 @@ for(k_silueta_1 in 1:elección_k_iteracion_1){
     variable_2_anexa_para_seleccionar_cluster_1=0
 }
 
-print(variable_4_anexa_para_seleccionar_cluster_1) ##Esto solo es para validar que estoy determinando al mejor cluster bien
-
-
-data_iteracion_2= data_actualizada[data_actualizada$clus_iteracion_1 == variable_4_anexa_para_seleccionar_cluster_1,]  ##Antes de variable 4 iba un 2 porque ese era le mejor cluster. Eso pasaba en estas dos filas
+data_iteracion_2= data_actualizada[data_actualizada$clus_iteracion_1 == variable_4_anexa_para_seleccionar_cluster_1,]  
 data_actualizada= data_actualizada[data_actualizada$clus_iteracion_1 == variable_4_anexa_para_seleccionar_cluster_1,]
-
 ```
 
-#Escalar Datos
+A forma de comprobación, dada la iteración anterior, el mejor cluster elegido fue el cluster numero: 
 
 ```{r}
-data_escalada_2=data_iteracion_2[,c(2:11,13)]
+variable_4_anexa_para_seleccionar_cluster_1
+```
+
+## Escalar Datos
+
+La intención de escalar los datos es que estos se encuentren centrados en el 0 y con desviación estandar 1. 
+
+Al igual que antes, dado que la función "scale" entrega el resultado como una matriz, se utiliza el argumento "as_tibble" para que el resultado sea un data frame. 
+
+```{r}
+data_escalada_2=data_iteracion_2[,c(2:10)]
 data_escalada_2=scale(data_escalada_2) %>% as_tibble()
 summary(data_escalada_2)
 
 ```
+Nuevamente se puede observar que la data elegida se encuentra escalada dado que ().
 
-#Modelo del codo
+## Regla del codo
+
+De manera similar a la iteración anterior, se utiliza la regla del codo para observar el comportamiento de la posible elección de cluster y se utiliza el coeficiente de siluetra para determinar la mejor cantidad de clusters dada la nueva data seleccionada. 
 
 ```{r}
 vector_codo_2 <- numeric(30)
@@ -302,9 +329,12 @@ for(k_codo_iteracion_2 in 1:30){
 }
 
 plot(vector_codo_2)
-
 ```
-# Coeficiente de silueta 
+
+## Coeficiente de silueta 
+
+La cantidad de cluster que agrupa de mejor manera los datos queda almacenada en la variable "elección_k_iteracion_2".
+
 ```{r}
 vector_silueta_2=numeric(20)
 Buffer_2 = 0
@@ -324,7 +354,13 @@ tempDF_2=data.frame(CS=vector_silueta_2,K=c(1:20))
 ggplot(tempDF_2, aes(x=K, y=CS)) + geom_line() + scale_x_continuous(breaks=c(1:30))
 
 ```
-#Implementacion de la segunda iteración
+
+## Implementacion de la segunda iteración
+
+Se crea el modelo de K Means sobre la nueva data seleccionada y con la cantidad de clusters almacenado en la variable "elección_k_iteracion_2", la cual contiene la mejor cantidad de clusters para utilizar en el modelo de K Means. A traves del modelo se almacena en el data frame "data_actualizada" el valor del cluster al cual pertenece cada una de las canciones a partir de esta segunda iteración del modelo.
+
+El resultado se representa a traves del siguente Plot, sin embargo, es importante volver a mencionar que esta es una de las tantas posibles combinaciones de variables que ilustran la agrupación de Cluster resultante de esta iteración. 
+
 ```{r}
 
 modelo_k_means_2 <- kmeans(data_escalada_2, centers = elección_k_iteracion_2)
@@ -335,24 +371,30 @@ data_escalada_2$clus_iteracion_2 <- modelo_k_means_2$cluster %>% as.factor()
 data_iteracion_2$clus_iteracion_2 <- modelo_k_means_2$cluster %>% as.factor() #dudo si eso esta bien
 data_actualizada$clus_iteracion_2 <- modelo_k_means_2$cluster %>% as.factor()
 
-ggplot(data_escalada_2, aes(energy,loudness, color=clus_iteracion_2 )) +  geom_point(alpha=0.5, show.legend = F) +  theme_bw()
+ggplot(data_escalada_2, aes(energy,danceability, color=clus_iteracion_2 )) +  geom_point(alpha=0.5, show.legend = F) +  theme_bw()
 
 ```
-#Evaluación de segunda iteracion de K Means
 
-Se incluye dentro del algoritmo una validación con respecto a la cohesión y la separación. Se espera que la separación aumente para demostrar una separación mayor entre los clusters mientras que la cogesión debe aumentar tambien, demostrando que dentro de cada cluster los elementos que lo incuyen se encuentran cercanos unos con otros. 
+## Evaluación de segunda iteracion de K Means
+
+Para evaluar la nueva iteración, en primer lugar se utilizará el estadistico de Hopkins: 
+```{r}
+Hopkins_2 <- get_clust_tendency(var_a_utilizar_en_clusters, n = 20, graph = FALSE)
+Hopkins_2
+```
+Un valor alto en el estadistico de Hopkins demuestra que existen agrupaciones en los datos. 
+
+Luego, se utilizará la cohesión: 
 
 ```{r}
-#Estadistico de Hopkins
-Hopkins_2 <- get_clust_tendency(var_a_utilizar_en_clusters, n = 20, graph = FALSE)
-print(Hopkins_2)
-
 data_escalada_2 <- apply(data_escalada_2,2,as.numeric)
- 
-#Cohesion
-print(modelo_k_means_2$tot.withinss)
+modelo_k_means_2$tot.withinss
+```
+Un alto valor en la cohesion indica que tan cercanos se encuentran los integrantes de un determinado  cluster. Se pretende que este valor sea alto. 
 
-#Separation
+A continuación se valida la separación entre clusters: 
+
+```{r}
 meanData_2 <- colMeans(data_escalada_2)
 SSB_2 <- numeric(elección_k_iteracion_2) #Este valor y el que esta en el for DEPENDEN DE LA CANTIDAD DE CLUSTERS QUE DETERMINA EL MODELO. 
 for (i_2 in 1:elección_k_iteracion_2){
@@ -361,38 +403,30 @@ for (i_2 in 1:elección_k_iteracion_2){
 }
 separation_2 = sum(SSB_2)
 
-print(separation_2)
+separation_2
+```
 
-#Coeficiente de silueta
+El valor de la separación mide que tan alejados se encuentran los clusters frente a otros clusters. 
+
+Y finalmente se utiliza el coeficiente de silueta: 
+
+```{r}
 coefSilueta_2 <- silhouette(modelo_k_means_2$cluster,dist(data_escalada_2))
 summary(coefSilueta_2)
 
-#visualizamos el codigo de silueta de cada cluster
 fviz_silhouette(coefSilueta_2) + coord_flip()
-
-#Comparación de Evaluaciones con iteración 1
-
-if(modelo_k_means_2$tot.withinss > modelo_k_means_1$tot.withinss){
-  print("La cohesión en la segunda iteración es mayor que en la primera, demostrando una mejora en el algoritmo")
-}
-if(modelo_k_means_2$tot.withinss < modelo_k_means_1$tot.withinss){
-  print("La cohesión en la segunda iteración es menor que en la primera, demostrando que la iteración no benefició la diferenciación de clusters")
-}
-
-if(separation_2 > separation_1){
-  print("La separación en la segunda iteración es mayor que en la primera, demostrando una mejora en el algoritmo")
-}
-if(separation_2 < separation_1){
-  print("La separación en la segunda iteración es menor que en la primera, demostrando que la iteración no benefició la diferenciación de clusters")
-}
-
 ```
+El análisis de siluetas mide qué tan bien se agrupa una observación y estima la distancia media entre los clústeres. Mientras mas grande sea el ancho medio de las siluetas, mejor agrupados se encuentran.
 
-##Tercera iteración K Means
+# Tercera iteración K Means
 
-En primer lugar se genera un nuevo Data Frame con las canciones que en la iteración anterior fueron seleccionados en el mejor cluster. 
+## Eleccion del mejor cluster de iteración pasada 
 
-#Eleccion del mejor cluster de iteración pasada 
+Se genera un nuevo Data Frame con las canciones que en la iteración anterior fueron seleccionados en el mejor cluster. Para lograr esto se debe encontrar cual fue el mejor cluster y por ende se utiliza el siguente codigo, el cual finaliza con la elección del mejor cluster en la variable "variable_4_anexa_para_seleccionar_cluster_2". 
+
+El funcionamiento es identico al ya explicado, por lo cual este codigo no volverá a ser explicado. 
+
+Finalmente, en "data_iteracion_3" se almacenan las canciones presentes en "data_actualizada" que fueron seleccionadas en el cluster seleccionado en la itetación de K Medias anterior. 
 
 ```{r}
 variable_1_anexa_para_seleccionar_cluster_2= 0
@@ -409,7 +443,6 @@ for(k_silueta_2 in 1:elección_k_iteracion_2){
         }
     } 
     variable_2_anexa_para_seleccionar_cluster_2=variable_1_anexa_para_seleccionar_cluster_2/contador_anexa_para_seleccionar_cluster_2   
-    print(variable_2_anexa_para_seleccionar_cluster_2) ##Esto solo es para validar que estoy calculando lo mismo que arriba
     
     if(variable_2_anexa_para_seleccionar_cluster_2 > variable_3_anexa_para_seleccionar_cluster_2){
        variable_3_anexa_para_seleccionar_cluster_2 = variable_2_anexa_para_seleccionar_cluster_2
@@ -420,24 +453,32 @@ for(k_silueta_2 in 1:elección_k_iteracion_2){
     variable_2_anexa_para_seleccionar_cluster_2=0
 }
 
-print(variable_4_anexa_para_seleccionar_cluster_2) ##Esto solo es para validar que estoy determinando al mejor cluster bien
-
 data_iteracion_3= data_actualizada[data_actualizada$clus_iteracion_2 == variable_4_anexa_para_seleccionar_cluster_2,]
 data_actualizada= data_actualizada[data_actualizada$clus_iteracion_2 == variable_4_anexa_para_seleccionar_cluster_2,]
 
 ```
-
-#Escalar Datos
-
+Nuevamente a forma de comprobación, dada la iteración anterior, el mejor cluster elegido fue el cluster numero: 
 
 ```{r}
-data_escalada_3=data_iteracion_3[,c(2:11,13)]
+variable_4_anexa_para_seleccionar_cluster_2
+```
+
+## Escalar Datos
+
+La intención de escalar los datos es que estos se encuentren centrados en el 0 y con desviación estandar 1. 
+
+Al igual que antes, dado que la función "scale" entrega el resultado como una matriz, se utiliza el argumento "as_tibble" para que el resultado sea un data frame. 
+
+```{r}
+data_escalada_3=data_iteracion_3[,c(2:10)]
 data_escalada_3=scale(data_escalada_3) %>% as_tibble()
 summary(data_escalada_3)
 
 ```
 
-#Modelo del codo
+## Modelo del codo
+
+Finalmente y de manera identica a las dos iteraciones anteriores, se utiliza la regla del codo para observar el comportamiento de la posible elección de cluster y se utiliza el coeficiente de siluetra para determinar la mejor cantidad de clusters dada la nueva data seleccionada. 
 
 ```{r}
 vector_codo_3 <- numeric(30)
@@ -450,7 +491,11 @@ for(k_codo_iteracion_3 in 1:30){
 plot(vector_codo_3)
 
 ```
-# Coeficiente de silueta 
+
+## Coeficiente de silueta 
+
+La cantidad de cluster que agrupa de mejor manera los datos queda almacenada en la variable "elección_k_iteracion_3".
+
 ```{r}
 vector_silueta_3=numeric(20)
 Buffer_3 = 0
@@ -470,36 +515,53 @@ tempDF_3=data.frame(CS=vector_silueta_3,K=c(1:20))
 ggplot(tempDF_3, aes(x=K, y=CS)) + geom_line() + scale_x_continuous(breaks=c(1:30))
 
 ```
-#Implementacion de la tercera iteración
+
+## Implementacion de la tercera iteración
+
+Se crea el modelo de K Means sobre la nueva data seleccionada y con la cantidad de clusters almacenado en la variable "elección_k_iteracion_3", la cual contiene la mejor cantidad de clusters para utilizar en el modelo de K Means. A traves del modelo se almacena en el data frame "data_actualizada" el valor del cluster al cual pertenece cada una de las canciones a partir de esta segunda iteración del modelo.
+
+El resultado se representa a traves del siguente Plot, sin embargo, es importante mencionar por ultima vez que esta es una de las tantas posibles combinaciones de variables que ilustran la agrupación de Cluster resultante de esta iteración. 
+
 ```{r}
 
 modelo_k_means_3 <- kmeans(data_escalada_3, centers = elección_k_iteracion_3)
 
 data_escalada_3$clus_iteracion_3 <- modelo_k_means_3$cluster %>% as.factor()
-
-#Esto agrega el valor de la tercera iteracion
 data_iteracion_3$clus_iteracion_3 <- modelo_k_means_3$cluster %>% as.factor()
-
-data_actualizada$clus_iteracion_3 <- modelo_k_means_3$cluster %>% as.factor() #####
+data_actualizada$clus_iteracion_3 <- modelo_k_means_3$cluster %>% as.factor() 
 
 ggplot(data_escalada_3, aes(energy,loudness, color=clus_iteracion_3 )) +  geom_point(alpha=0.5, show.legend = F) +  theme_bw()
 
 ```
-#Evaluación de tercera iteracion de K Means
 
+## Evaluación de tercera iteracion de K Means
+
+De acuerdo al estadistico de Hopkins, el cual mide la tendencia de los Klusters. Se realzia con una cantidad de 20 muestras. Luego se validará mediante el limite de Cohesión y de separación. 
+
+Se evita la evaluación visual dado que el algoritmo funciona con numeros generados aleatoriamente, es decir, en cada iteración se genera una difernete agrupación y cantidad de cluster, a los cuales el algoritmo por su cuenta debe decidir cual es el mejor. 
+
+En primer lugar tenemos el estadistico de Hopkins:
 
 ```{r}
-
-#Estadistico de Hopkins
 Hopkins_3 <- get_clust_tendency(var_a_utilizar_en_clusters, n = 20, graph = FALSE)
-print(Hopkins_3)
+Hopkins_3
+```
 
+Un valor alto en el estadistico de Hopkins demuestra que existen agrupaciones en los datos.
+
+Luego esta la cohesión: 
+
+```{r}
 data_escalada_3 <- apply(data_escalada_3,2,as.numeric)
- 
-#Cohesion
-print(modelo_k_means_3$tot.withinss)
+modelo_k_means_3$tot.withinss
 
-#Separation
+```
+
+Un alto valor en la cohesion indica que tan cercanos se encuentran los integrantes de un determinado  cluster. Se pretende que este valor sea alto. 
+
+A continuación se realiza el estudio de la separación:
+
+```{r}
 meanData_3 <- colMeans(data_escalada_3)
 SSB_3 <- numeric(elección_k_iteracion_3) #Este valor y el que esta en el for DEPENDEN DE LA CANTIDAD DE CLUSTERS QUE DETERMINA EL MODELO. 
 for (i_3 in 1:elección_k_iteracion_3){
@@ -508,38 +570,30 @@ for (i_3 in 1:elección_k_iteracion_3){
 }
 separation_3 = sum(SSB_3)
 
-print(separation_3)
+separation_3
+```
 
-#Coeficiente de silueta
+El valor de la separación mide que tan alejados se encuentran los clusters frente a otros clusters. 
+
+Y finalmente se utiliza el coeficiente de silueta: 
+
+```{r}
 coefSilueta_3 <- silhouette(modelo_k_means_3$cluster,dist(data_escalada_3))
 summary(coefSilueta_3)
 
-#visualizamos el codigo de silueta de cada cluster
 fviz_silhouette(coefSilueta_3) + coord_flip()
-
-#Comparación de Evaluaciones con iteración 2
-
-if(modelo_k_means_3$tot.withinss > modelo_k_means_2$tot.withinss){
-  print("La cohesión en la tercera iteración es mayor que en la primera, demostrando una mejora en el algoritmo")
-}
-if(modelo_k_means_3$tot.withinss < modelo_k_means_3$tot.withinss){
-  print("La cohesión en la tercera iteración es menor que en la primera, demostrando que la iteración no benefició la diferenciación de clusters")
-}
-
-if(separation_3 > separation_2){
-  print("La separación en la tercera iteración es mayor que en la primera, demostrando una mejora en el algoritmo")
-}
-if(separation_3 < separation_2){
-  print("La separación en la tercera iteración es menor que en la primera, demostrando que la iteración no benefició la diferenciación de clusters")
-}
-
-
-
-
 ```
-##Playlist a partir de K Means
 
-#Selección del mejor Cluster de Ultima iteración
+El análisis de siluetas mide qué tan bien se agrupa una observación y estima la distancia media entre los clústeres. Mientras mas grande sea el ancho medio de las siluetas, mejor agrupados se encuentran.
+# Playlist a partir de K Means
+
+## Selección del mejor Cluster de Ultima iteración
+
+Se genera un nuevo Data Frame con las canciones que en la iteración anterior fueron seleccionados en el mejor cluster. Para lograr esto se debe encontrar cual fue el mejor cluster y por ende se utiliza el siguente codigo, el cual finaliza con la elección del mejor cluster en la variable "variable_4_anexa_para_seleccionar_cluster_3". 
+
+El funcionamiento es identico al ya explicado, por lo cual este codigo no volverá a ser explicado. 
+
+Finalmente, en "dataframe_playlist" se almacenan las canciones presentes en "data_actualizada" que fueron seleccionadas en el cluster seleccionado en la itetación de K Medias anterior.
 
 ```{r}
 variable_1_anexa_para_seleccionar_cluster_3= 0
@@ -556,7 +610,6 @@ for(k_silueta_3 in 1:elección_k_iteracion_3){
         }
     } 
     variable_2_anexa_para_seleccionar_cluster_3=variable_1_anexa_para_seleccionar_cluster_3/contador_anexa_para_seleccionar_cluster_3 
-    print(variable_2_anexa_para_seleccionar_cluster_3) ##Esto solo es para validar que estoy calculando lo mismo que arriba
     
     if(variable_2_anexa_para_seleccionar_cluster_3 > variable_3_anexa_para_seleccionar_cluster_3){
        variable_3_anexa_para_seleccionar_cluster_3 = variable_2_anexa_para_seleccionar_cluster_3
@@ -567,51 +620,76 @@ for(k_silueta_3 in 1:elección_k_iteracion_3){
     variable_2_anexa_para_seleccionar_cluster_3=0
 }
 
-print(variable_4_anexa_para_seleccionar_cluster_3) ##Esto solo es para validar que estoy determinando al mejor cluster bien
-
 dataframe_playlist= data_actualizada[data_iteracion_3$clus_iteracion_3 == variable_4_anexa_para_seleccionar_cluster_3,]
-dataframe_playlist=dataframe_playlist[,c(1,13,14)]
+dataframe_playlist=dataframe_playlist[,c(1,12,13)]
 ```
 
-#Generación de numeros aleatorios
+Finalmente a forma de comprobación, dada la iteración anterior, el mejor cluster elegido fue el cluster numero: 
+
+```{r}
+variable_4_anexa_para_seleccionar_cluster_3
+```
+
+## Generación de numeros aleatorios
+
+Para poder generar una especie de "shuffle" en la playlist, se realizará una lista con valores aleatorios para seleccionar canciones del dataframe de canciones que fueron determinadas del analisis de cluster, es decir, de todas las canciones que presentaron las mas altas similitudes se generará una lista para seleccionar de manera aleatoria a alguna de ellas. 
 
 ```{r}
 sample_index_playlist <- sample(1:nrow(dataframe_playlist),dim(dataframe_playlist), replace = F)
-
 ```
 
-#Transformación del tiempo 
-Pasarlos de ms a segundos y luego de segundos a minutos
+## Transformación del tiempo 
+
+La duación presente en la base de datos original se encuentra en milisegundos (ms) por lo cual mediante el siguente codigo se trasnformará a segundos y luego a minutos. 
+
 ```{r}
 dataframe_playlist$duration_ms=dataframe_playlist$duration_ms*0.001/60
 ```
-#Generación de playlist
 
-```{r}
+## Generación de playlist
+
+Con un ciclo que recorre desde el valor 1 hasta el valor del largo del datafrake de canciones que fueron seleccionadas por la clusterización, se seleccionaran por orden las canciones que la lista de numeros aleatorios determinó hasta completar un tiempo acumulado de 3 horas para asi completar el requisito del entregable. 
+
+```{r,message=FALSE}
 contador_de_tiempo=0
-playlist_final=NULL
-playlist_final= data.frame('artista','cancion')
+playlist_semi_final=NULL
+playlist_semi_final= data.frame('artista','cancion','index')
 
 for (k_playlist in 1:dim(dataframe_playlist)){
     variable_auxiliar_playlist=sample_index_playlist[k_playlist]
-    print(dataframe_playlist[variable_auxiliar_playlist,c(1,3)]) #Esto es para checkear el dataframe de canciones
     
-    playlist_final[k_playlist,1]=dataframe_playlist[variable_auxiliar_playlist,1]
-    playlist_final[k_playlist,2]=dataframe_playlist[variable_auxiliar_playlist,3]
+    playlist_semi_final[k_playlist,1]=dataframe_playlist[variable_auxiliar_playlist,1]
+    playlist_semi_final[k_playlist,2]=dataframe_playlist[variable_auxiliar_playlist,3]
+    playlist_semi_final[k_playlist,3]=k_playlist
     
     contador_de_tiempo=contador_de_tiempo+dataframe_playlist$duration_ms[variable_auxiliar_playlist]
     if(contador_de_tiempo >= 180){
-      view(playlist_final)
       break
     }
 }
 ```
 
-#Elección de canción y playlist asociada
+# Elección de canción y playlist asociada
+
+Finalmente, se ilustran los resultados del algoritmo. 
+
+## Cancion elegida 
+
+La canción elegida es elegida de manera aleatoria de las canciones que fueron seleccionadas para compeletar las 3 horas de reproducción. En esta iteración la cancion elegida fue: 
 
 ```{r}
-
-
+sample_index_cancion <- sample(1:nrow(playlist_semi_final),1, replace = F)
+playlist_semi_final[sample_index_cancion,]
 ```
 
+## Playlist Asociada
 
+La playlist corresponde al resto de canciones que fueron elegidas para completar las tres horas de duración, por lo que la playlist asociada a esa determinada canción elegida es: 
+
+```{r}
+playlist_final = playlist_semi_final[!(playlist_semi_final$X.index. == sample_index_cancion),]
+playlist_final$X.index.=NULL
+
+playlist_final
+```
+De esta manera, se finaliza el entregable. 
