@@ -1,0 +1,222 @@
+---
+title: "Actividad Ayudantia 8: Clustering Probabilistico"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Actividad Ayudantía 8: Entrega 28/05
+
+# Objetivo
+
+Para esta actividad tendrán que utilizar el csv que está subido de spotify o realizar ustedes un sample de la data del proyecto 2 de al menos 8000 observaciones.
+
+Para dicho dataset tendrán que realizar los tres modelos de clustering vistos en la ayudantía y tendrán que ejecutar 3 iteraciones del análisis mencionando que modificaron en cada iteración en la búsqueda de mejorar los clúster que se forman.
+
+## Importar Librerías
+```{r, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(cluster)
+library(factoextra)
+library(mclust)
+library(readr)
+library(dbscan)
+library(e1071)
+library(mclust)
+```
+
+## Cargar Datos
+
+```{r}
+setwd("C:/Users/Felipe/Documents/GitHub/Entregas_mineria_de_datos/Ayudantias/Actividad Ayudantia 8")
+Spotify_Songs <- read_csv("C:/Users/Felipe/Documents/GitHub/Entregas_mineria_de_datos/Ayudantias/Actividad Ayudantia 8/Spotify_Songs.csv")
+View(Spotify_Songs)
+```
+
+## Seleccionar datos
+
+Se pretenden seleccionar los 8000 datos que especifica el enunciado. Se realiza de una manera aleatoria. 
+
+```{r}
+set.seed(2000000)
+muestra_index <- sample(1:nrow(Spotify_Songs),8500, replace = F)
+muestra = Spotify_Songs[muestra_index,]
+summary(muestra)
+```
+
+## Comprobar Datos NA 
+
+Hay datos faltantes en algunas columnas, por lo tanto procedo a filtrar y eliminarlos. Se revisa con el último display. 
+
+```{r}
+muestra[muestra == ""] <- NA
+muestra %>% summarise_all(funs(sum(is.na(.))))
+muestra_filtrada <- muestra %>% filter(!(is.na(track_name)|is.na(track_artist)|is.na(track_album_name)|is.na(duration_ms)|is.na(tempo)|is.na(duration_ms)))
+muestra_filtrada %>% summarise_all(funs(sum(is.na(.))))
+```
+
+## Escalar Data
+
+```{r}
+var_numericas = muestra_filtrada[,c(12:23)]
+data_escalada=scale(var_numericas) %>% as_tibble()
+summary(data_escalada)
+```
+
+# DBSCAN
+Primer método, clustering basado en densidad
+
+```{r, warning = FALSE, message = FALSE}
+modelo_1 = dbscan(data_escalada, eps = 2, minPts = 5)
+modelo_1
+```
+El modelo genera 3 clúster, basado en los parámetros que le entregamos a la función dbscan.
+Al aumentar la cantidad de "eps" se reduce la cantidad de clúster encontrados, agrupando a todo el conjunto de datos en un único clúster mientras que ocurre lo contrario al disminuir el valor. 
+Al reducir el valor de "minPtos" los datos se agrupan de mejor manera en cada uno de los clúster encontrados, mientras que si ese valor aumenta los clúster tienden a agruparse en único clúster. 
+
+```{r}
+ggplot(data_escalada, aes(danceability, energy, color = factor(modelo_1$cluster), size = danceability)) + geom_point(alpha = 0.3) 
+```
+
+Existe un exceso de ruido, el cual molesta con la interpretación que se le puede dar. Además hay diversos puntos que no quedan asignados a ningún clúster dados los valores escogidos para la distancia mínima. 
+
+El clúster 0 de este modelo representa el ruido, hay que buscar una combinación que lo disminuya. Ese valor bordea los 8000 cuando la distancia desde el centro es 1. 
+
+# Fuzzy C Means
+
+Se le va a pedir la misma cantidad de clúster que el modelo anterior (3) y un fusificador de 2 tal como se vio en la ayudantía. 
+
+```{r}
+
+modelo_2 <- cmeans(data_escalada, 3, m=5) 
+
+modelo_2$membership %>% head()
+
+```
+
+El algoritmo cmeans asigna como clúster al que tenga mayor probabilidad. El primer parámetro corresponde a la cantidad de clúster deseados.
+Al aumentar el fusificador, se observan pequeños cambios en las probabilidades entregadas, pero no corresponden a cambios significativos. 
+
+Otros algoritmos como el c-means permiten asignarle un clúster a todos los puntos
+
+```{r}
+ggplot(data_escalada, aes(danceability, energy, color = factor(modelo_2$cluster), size = danceability)) + geom_point(alpha = 0.3) 
+```
+
+Se pueden observar de manera más concreta los diferentes clúster obtenidos, pero de igual manera un clúster de baja relevancia queda oculto entre los otros dos. 
+
+Para los modelos de clustering difuso podemos calcular el Coeficiente de partición difusa (FPC)  
+
+```{r}
+matriz <- modelo_2$membership%*%t(modelo_2$membership) 
+(FPC <- sum(matriz*diag(nrow(matriz)))/nrow(matriz))
+```
+
+El valor del FPC es bajo, lo que significa que los grupos tienen alta variabilidad, y se puede confirmar en la figura, ya que no se ven grupos definidos.
+
+# GMM
+
+GMM permiten obtener clúster difusos utilizando modelos probabilísticos
+
+```{r}
+model_3 = Mclust(data_escalada)
+model_3 
+summary(model_3, parameters = TRUE)
+```
+
+El modelo género  clúster los que se pueden visualizar igual que los ejemplos anteriores
+
+```{r}
+ggplot(data_escalada) + aes(x=danceability, y=energy, color=factor(model_3$classification)) +geom_point(alpha=1)
+```
+
+```{r}
+fviz_cluster(model_3, data_escalada, stand = FALSE, frame = FALSE,geom = "point")
+```
+
+El modelo aplicó todas las formas posibles de la matriz de covarianzas, y permite visualizar como evoluciona el BIC a medida que aumentamos el número de clúster. Esta visualización permite ver que la mayoría de los modelos deja de mejorar sobre  clúster
+
+# BIC
+
+```{r}
+plot(model_3, what = "BIC")
+```
+
+# Segundo Intento: Eliminar columnas del dataset 
+
+Saque la duración y el mode porque las sentí como variables poco relevantes. 
+
+```{r}
+data_escalada_2= data_escalada[,c(1:4,6:11 )]
+```
+
+# DBSCAN
+Primer método, clustering basado en densidad
+
+```{r, warning = FALSE, message = FALSE}
+modelo_1_2 = dbscan(data_escalada_2, eps = 2, minPts = 6)
+modelo_1_2
+```
+
+El modelo genera 6 clusters, basado en los parámetros que le entregamos a la función dbscan. Diminuyó el ruido, pero la mayoría de los datos se agruparon en el clúster 1. 
+
+```{r}
+ggplot(data_escalada_2, aes(danceability, energy, color = factor(modelo_1_2$cluster), size = danceability)) + geom_point(alpha = 0.3) 
+```
+
+Se puede ver que hay diversos puntos que no quedan asignados a ningún clúster dados los valores escogidos para la distancia mínima y además, a pesar de que no hay ruido, el clúster 1 concentra casi la totalidad de los datos.  
+
+Otros algoritmos como el c-means permiten asignarle un clúster a todos los puntos
+
+# Fuzzy C Means
+
+```{r}
+modelo_2_2 <- cmeans(data_escalada_2,  4,m=1.5) 
+modelo_2_2$membership %>% head()
+```
+
+El algoritmo cmeans asigna como clúster al que tenga mayor probabilidad
+
+```{r}
+ggplot(data_escalada_2, aes(danceability, energy, color = factor(modelo_2_2$cluster), size = danceability)) + geom_point(alpha = 0.3) 
+```
+
+Para los modelos de clustering difuso podemos calcular el Coeficiente de partición difusa (FPC) 
+
+```{r}
+matriz_2 <- modelo_2_2$membership%*%t(modelo_2_2$membership) 
+(FPC <- sum(matriz*diag(nrow(matriz)))/nrow(matriz))
+```
+No se evidencia mejora con respecto a la iteración que mantenía todas las variables. 
+
+# GMM
+
+GMM permiten obtener clúster difusos pero utilizando modelos probabilísticos
+
+```{r}
+model_3_2 = Mclust(data_escalada_2)
+model_3_2
+summary(model_3_2, parameters = TRUE)
+```
+
+El modelo generó clusters los que se pueden visualizar igual que los ejemplos anteriores
+
+```{r}
+ggplot(data_escalada_2) + aes(x=danceability, y=energy, color=factor(model_3_2$classification)) +geom_point(alpha=1)
+```
+
+```{r}
+fviz_cluster(model_3_2, data_escalada_2, stand = FALSE, frame = FALSE,geom = "point")
+```
+
+El modelo aplicó todas las formas posibles de la matriz de covarianzas, y permite visualizar como evoluciona el BIC a medida que aumentamos el número de clúster. Esta visualización permite ver que la mayoría de los modelos deja de mejorar sobre  clúster
+
+# BIC
+
+```{r}
+plot(model_3_2, what = "BIC")
+```
+
+Se evidencia de mejor manera una mejora en el algoritmo de clusterización debido a la eliminación de 2 variables. 
