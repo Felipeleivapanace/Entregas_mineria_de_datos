@@ -1,0 +1,227 @@
+---
+title: "Actividad Ayudantia 9: Regresion Lineal y Regresion Logistica"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Objetivo
+
+Para la actividad de esta ayudantía tendrá que utilizar dos datasets, el primer dataset que utilizar para la regresión lineal será la data de los autos usados del fabricante toyota. El segundo dataset para la regresión logística será el dataset de los vinos que hemos utilizado antes, donde se busca clasificar según la calidad del vino. (Entrega límite: 6/06/2021 23:59)
+
+## Cargar Librerias 
+
+```{r, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(GGally)
+library(regclass)
+library(pROC)
+library(rsample)
+```
+
+## Cargar Datos
+
+```{r}
+#setwd("C:/Users/Felipe/Documents/GitHub/Entregas_mineria_de_datos/Ayudantias/Actividad Ayudantia 9")
+
+toyota <- read.csv("toyota.csv")
+wine <- read.csv("winequality-red.csv")
+```
+
+# Limpieza de datos
+
+## Búsqueda de datos faltantes
+
+```{r}
+toyota[toyota == ""] <- NA
+toyota %>%  summarise_all(funs(sum(is.na(.))))
+
+wine[wine == ""] <- NA
+wine %>%  summarise_all(funs(sum(is.na(.))))
+```
+
+Ninguna Base de Datos tiene datos faltantes
+
+# Regresion Lineal con database Toyota
+
+En este analisis lo que buscaremos es predecir el precio al que podriamos vender un auto en caso de tener un Toyota. Para esto transformamos las variables del modelo, transmision y tipo de combustible, a factores para trabajar con dichos valores como "etiquetas"
+
+```{r}
+toyota$model <- as.factor(toyota$model)
+toyota$transmission <- as.factor(toyota$transmission)
+toyota$fuelType <- as.factor(toyota$fuelType)
+
+summary(toyota)
+```
+
+Podemos ver que un valor en el tamaño del motor de 0 no tiene mucho sentido por lo que revisaremos cuantas observaciones presentan este este valor, y en caso de haber datos con valor 0 los eliminamos de nuestro dataset
+
+```{r}
+toyota %>% filter(engineSize == 0) %>% nrow()
+
+toyota <- toyota %>%  filter(engineSize != 0)
+
+summary(toyota)
+```
+
+Una vez ya listo nuestro datos, realizamos una visualizacion de nuestro datos numericos, para ver la correlacion que pueda existir entre las variables y la distribucion de los datos. 
+
+```{r, message=FALSE, warning=FALSE}
+toyota %>% select(year, mileage, tax, mpg, engineSize, price) %>% 
+  ggpairs(lower = list(continuous = wrap("points", alpha = 0.3, size = 0.5)))
+```
+
+Se pretenden elegir los valores que tengan una mayor asociación entre alguna variables y el precio, es decir, que tengan una alta correlación con el precio sin importar si es positiva o negativa. 
+
+Revisamos como se distribuyen los datos que pasamos a factor en relacion al precio, para esto utilizamos los boxplot lo que tambien nos ayudara a ver si existen valores atipicos que puedan alterar nuestro modelo
+
+```{r}
+toyota %>% ggplot(aes(transmission, price)) +geom_boxplot()
+
+toyota %>% ggplot(aes(fuelType, price)) + geom_boxplot()
+
+toyota %>% mutate(model = reorder(model, price)) %>% ggplot(aes(price, model)) + geom_boxplot()
+```
+
+Existen varios valores atipicos, los cuales son representados por los puntos negros fuera del rectangulo. 
+Graficamos las cuatro variables con mayores valores, en donde enginesize es la mas relevante al tener la mayor magnitud, seguido por el año. 
+
+```{r}
+toyota %>% ggplot(aes(engineSize, price)) +
+  geom_point(alpha = .1) +
+  stat_smooth(method = "gam", formula = y ~ s(x, k=3))
+
+toyota %>% ggplot(aes(year, price)) +
+  geom_point(alpha = .1) +
+  stat_smooth(method = "gam", formula = y ~ s(x, k=3))
+```
+
+Escalamos los datos antes de ralizar el analisis de regresion
+
+```{r}
+toyota_sca <- toyota
+toyota_sca[,c(2,3,5,7,8,9)] <- scale(toyota_sca[,c(2,3,5,7,8,9)])
+
+toyota_sca %>%  head()
+```
+
+## Regresion simple con el tamaño del motor para predecir el precio 
+
+```{r}
+reg_simp <- lm(price ~ engineSize, data = toyota)
+summary(reg_simp)
+```
+
+Solo se explica el 53% del modelo. Los resultados de la regresion nos indican que los valores de los parametros son -3202.6 para el intercepto y 10679.5 para el coeficiente asociado a la variable del tamaño del motor.
+
+## Regresion multiple con el tamaño del motor y el año  para predecir el precio 
+
+```{r}
+reg_mult <- lm(price ~ engineSize + year*mileage, data = toyota_sca)
+summary(reg_mult)
+```
+
+Se evdiencia una mejora al incluir una nueva variable para explicar el modelo dado que ahora se explica un 76,8% de la varianza. Ademas, todas las variables resultan ser significativas para el modelo.
+
+## VIF
+
+Revisamos el valor del factor de inflacion de la varianza, este factor nos permite entender la colinealidad de los datos. Un VIF por encima de 4 o una tolerancia por debajo de 0,25 indica que podría existir multicolinealidad y se requiere más investigación.
+
+```{r}
+VIF(reg_mult)
+```
+
+Los valores referentes al estudio del VIF no presentan multicolinealidad y no se necesita alguna modificación al respecto.
+
+# Regresion Logistica con data de Vinos
+
+Se pretende predecir la calidad del vino a partir de diversas variables. 
+
+## Visualización de la data
+
+```{r}
+glimpse(wine)
+attach(wine)
+
+ggplot(wine,aes(x=factor(quality))) +
+  geom_bar(col ="black",fill="#993333",alpha=0.5) +
+  theme(axis.text.x = element_text(face="bold", size=10)) +
+  scale_x_discrete("Calidad") +
+  scale_y_continuous("Contador")
+```
+
+Ahora, revisemos las variables que determinan la calidad. Es dificil hacer algunos de los graficos que se vieron en la ayudantia dado que este dataset de vinos tiene muchos valores distintos por cada variable, lo cual dificulta la realización de etiquetas tipo "se cancela" o "no se cancela" como en la ayudantía. De hacerlo asi habría millones de etiquetas por cada valor diferente en una variable. 
+
+## Segmentar variable Quality
+
+Se va a crear una variable booleana (simulando el "yes" o el "No" de la ayudantía para poder ocupar el modelo). Dado que la calidad va desde 3 hasta 8, se utilizará la mitad de este intervalo para dividir los valores de alcohol. 
+
+```{r}
+summary(wine)
+for(i in 1:dim(wine)){
+  if (quality[i]>= 5.5)
+     wine$quality_segmentado[i]=1
+  if (quality[i]< 5.5)
+    wine$quality_segmentado[i]=0
+}
+attach(wine)
+```
+
+## Regresión Logistica Simple para predecir Calidad desde la cantidad de alcohol
+
+```{r}
+set.seed(369)
+summary(wine)
+glm.fit <- glm(quality_segmentado ~ alcohol, data = wine , family = "binomial")
+summary(glm.fit)
+```
+
+## Curva ROC
+```{r}
+prob <- predict(glm.fit, type = c("response"))
+wine$prob <- prob
+curva_roc <- roc(quality_segmentado ~ prob, data = wine)
+plot(curva_roc)
+auc(curva_roc)
+```
+
+La curva ROC arroja un resultado del 75%, lo cual indica una alta explicación de modelo pero es importante destacar que la segmentación utilizada sesga el modelo. 
+
+## Regresión Logistica Multiple para predecir Calidad desde todas las variables restantes
+```{r}
+wine$prob <- NULL
+modelo_log_multi <- glm(quality_segmentado ~ alcohol + sulphates  + pH + density + total.sulfur.dioxide + free.sulfur.dioxide + chlorides + residual.sugar + citric.acid + volatile.acidity, wine, family = "binomial")
+summary(modelo_log_multi)
+```
+
+```{r}
+prob_multi <- predict(modelo_log_multi, type = c("response"))
+wine$prob_multi <- prob_multi
+curva_roc_multi <- roc(quality_segmentado ~ prob_multi, data = wine)
+plot(curva_roc_multi)
+auc(curva_roc_multi)
+```
+
+La curva mejora dado que ahora se explica un 82% del modelo. 
+
+## Ocupando Modelos de Entrenamiento
+
+```{r}
+set.seed(369)
+data_split <- initial_split(wine,prop = 0.7,strata = NULL)
+
+train_data <- training(data_split) %>% as.data.frame() 
+test_data <- testing(data_split) %>%  as.data.frame()
+
+modelo_log_multi1 <- glm(quality_segmentado ~ alcohol + sulphates  + pH + density + total.sulfur.dioxide + free.sulfur.dioxide + chlorides + residual.sugar + citric.acid + volatile.acidity, wine, family = "binomial")
+summary(modelo_log_multi1)
+```
+
+```{r}
+test_data$prob_multi <- predict(modelo_log_multi1, test_data, type = c("response"))
+auc(roc(quality_segmentado ~ prob_multi, data = test_data))
+```
+
+La predicción mejora dado que se explica un 2% mas que antes al utilizar la misma cantidad de variables. 
