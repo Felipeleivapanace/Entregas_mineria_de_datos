@@ -1,4 +1,4 @@
-Untitled
+Actividad Ayudantia 10
 ================
 
 # Objetivo
@@ -245,9 +245,9 @@ CreditLinear <- stan_glm(default.payment.next.month ~ ., data = Credit_Card, fam
     ## Chain 1: Iteration: 1800 / 2000 [ 90%]  (Sampling)
     ## Chain 1: Iteration: 2000 / 2000 [100%]  (Sampling)
     ## Chain 1: 
-    ## Chain 1:  Elapsed Time: 0.094 seconds (Warm-up)
-    ## Chain 1:                1.767 seconds (Sampling)
-    ## Chain 1:                1.861 seconds (Total)
+    ## Chain 1:  Elapsed Time: 0.093 seconds (Warm-up)
+    ## Chain 1:                1.736 seconds (Sampling)
+    ## Chain 1:                1.829 seconds (Total)
     ## Chain 1: 
     ## 
     ## SAMPLING FOR MODEL 'continuous' NOW (CHAIN 2).
@@ -270,9 +270,9 @@ CreditLinear <- stan_glm(default.payment.next.month ~ ., data = Credit_Card, fam
     ## Chain 2: Iteration: 1800 / 2000 [ 90%]  (Sampling)
     ## Chain 2: Iteration: 2000 / 2000 [100%]  (Sampling)
     ## Chain 2: 
-    ## Chain 2:  Elapsed Time: 0.089 seconds (Warm-up)
-    ## Chain 2:                1.774 seconds (Sampling)
-    ## Chain 2:                1.863 seconds (Total)
+    ## Chain 2:  Elapsed Time: 0.09 seconds (Warm-up)
+    ## Chain 2:                1.837 seconds (Sampling)
+    ## Chain 2:                1.927 seconds (Total)
     ## Chain 2: 
     ## 
     ## SAMPLING FOR MODEL 'continuous' NOW (CHAIN 3).
@@ -295,9 +295,9 @@ CreditLinear <- stan_glm(default.payment.next.month ~ ., data = Credit_Card, fam
     ## Chain 3: Iteration: 1800 / 2000 [ 90%]  (Sampling)
     ## Chain 3: Iteration: 2000 / 2000 [100%]  (Sampling)
     ## Chain 3: 
-    ## Chain 3:  Elapsed Time: 0.085 seconds (Warm-up)
-    ## Chain 3:                1.786 seconds (Sampling)
-    ## Chain 3:                1.871 seconds (Total)
+    ## Chain 3:  Elapsed Time: 0.178 seconds (Warm-up)
+    ## Chain 3:                1.767 seconds (Sampling)
+    ## Chain 3:                1.945 seconds (Total)
     ## Chain 3: 
     ## 
     ## SAMPLING FOR MODEL 'continuous' NOW (CHAIN 4).
@@ -321,8 +321,8 @@ CreditLinear <- stan_glm(default.payment.next.month ~ ., data = Credit_Card, fam
     ## Chain 4: Iteration: 2000 / 2000 [100%]  (Sampling)
     ## Chain 4: 
     ## Chain 4:  Elapsed Time: 0.09 seconds (Warm-up)
-    ## Chain 4:                1.856 seconds (Sampling)
-    ## Chain 4:                1.946 seconds (Total)
+    ## Chain 4:                1.752 seconds (Sampling)
+    ## Chain 4:                1.842 seconds (Total)
     ## Chain 4:
 
 ``` r
