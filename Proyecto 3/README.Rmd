@@ -1,0 +1,42 @@
+---
+title: "Proyecto 3"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Objetivo 
+
+El objetivo principal de este encargo es crear un programa computacional que permita diferenciar lasactividades realizadas en bicicleta o a pie según sus características como distancia recorrida, velocidad  promedio u otro atributo. Como objetivo secundario se espera que su programa permita identificar aquellas actividades que fueron registradas erróneamente por el usuario. La base de datos incluye 167.615 actividades y 17 variables.
+
+# Importar Librerías
+```{r, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(e1071)
+library(caret)
+library(rstan)
+library(rstanarm)
+```
+
+# Cargar Datos
+
+```{r}
+setwd("C:/Users/Felipe/Documents/GitHub/Entregas_mineria_de_datos/Proyecto 3")
+data<- readRDS("C:/Users/Felipe/Documents/GitHub/Entregas_mineria_de_datos/Proyecto 3/endurance.rds")
+View(data)
+```
+
+# Limpieza de  datos
+
+## Busqueda de datos faltantes
+
+```{r}
+data[data == ""] <- NA
+data %>%  summarise_all(funs(sum(is.na(.))))
+```
+
+# Eleccion de variables
+
+# Lógica

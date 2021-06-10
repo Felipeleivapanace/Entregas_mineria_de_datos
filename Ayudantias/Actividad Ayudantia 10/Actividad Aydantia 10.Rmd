@@ -1,0 +1,142 @@
+---
+title: "Untitled"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Objetivo
+
+Para esta ayudantia tendran que realizar el metodo de analisis bayesiano para el data set de tarjetas de credito (dentro del bloc de notas podran encontrar el link que la explicacion de las variables del data set). El objetivo para ese data set es determinar si la persona fallara o no en el pago de su credito a partir de las variables del dataset
+
+# Importar Librerías
+```{r, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(e1071)
+library(caret)
+library(rstan)
+library(rstanarm)
+library(pROC)
+library(ROCR)
+```
+
+# Cargar Datos
+
+```{r}
+setwd("C:/Users/Felipe/Documents/GitHub/Entregas_mineria_de_datos/Ayudantias/Actividad Ayudantia 10")
+Credit_Card <- read_csv("C:/Users/Felipe/Documents/GitHub/Entregas_mineria_de_datos/Ayudantias/Actividad Ayudantia 10/UCI_Credit_Card.csv")
+View(Credit_Card)
+attach(Credit_Card)
+```
+
+Las variables incluidas son:
+
+- ID: ID of each client
+- LIMIT_BAL: Amount of given credit in NT dollars (includes individual and family/supplementary credit
+- SEX: Gender (1=male, 2=female)
+- EDUCATION: (1=graduate school, 2=university, 3=high school, 4=others, 5=unknown, 6=unknown)
+- MARRIAGE: Marital status (1=married, 2=single, 3=others)
+- AGE: Age in years
+- PAY_0: Repayment status in September, 2005 (-1=pay duly, 1=payment delay for one month, 2=payment delay for two months, … 8=payment delay for eight months, 9=payment delay for nine - months and above)
+- PAY_2: Repayment status in August, 2005 (scale same as above)
+- PAY_3: Repayment status in July, 2005 (scale same as above)
+- PAY_4: Repayment status in June, 2005 (scale same as above)
+- PAY_5: Repayment status in May, 2005 (scale same as above)
+- PAY_6: Repayment status in April, 2005 (scale same as above)
+- BILL_AMT1: Amount of bill statement in September, 2005 (NT dollar)
+- BILL_AMT2: Amount of bill statement in August, 2005 (NT dollar)
+- BILL_AMT3: Amount of bill statement in July, 2005 (NT dollar)
+- BILL_AMT4: Amount of bill statement in June, 2005 (NT dollar)
+- BILL_AMT5: Amount of bill statement in May, 2005 (NT dollar)
+- BILL_AMT6: Amount of bill statement in April, 2005 (NT dollar)
+- PAY_AMT1: Amount of previous payment in September, 2005 (NT dollar)
+- PAY_AMT2: Amount of previous payment in August, 2005 (NT dollar)
+- PAY_AMT3: Amount of previous payment in July, 2005 (NT dollar)
+- PAY_AMT4: Amount of previous payment in June, 2005 (NT dollar)
+- PAY_AMT5: Amount of previous payment in May, 2005 (NT dollar)
+- PAY_AMT6: Amount of previous payment in April, 2005 (NT dollar)
+- default.payment.next.month: Default payment (1=yes, 0=no)
+
+# Limpieza de datos
+
+## Búsqueda de datos faltantes
+
+```{r}
+Credit_Card[Credit_Card == ""] <- NA
+Credit_Card %>%  summarise_all(funs(sum(is.na(.))))
+```
+
+No hay datos faltantes. 
+
+# Modelo Batesiano 
+
+## Eliminar filas que no se van a utilizar
+
+Pretendo eliminar todas las variables que no me ayuden a determinar si la persona fallara o no en el pago de su credito.
+Variables como Bill_AMT1 y Pay_AMT1 tienen magnitudes que representan la magnitud del valor y no son variables booleanas por lo cual las borre.Voy a dejar solo las variables que representen una decisión del tipo "pago" o "no pago". 
+
+```{r}
+Credit_Card$LIMIT_BAL = NULL
+
+Credit_Card$BILL_AMT1 = NULL
+Credit_Card$BILL_AMT2 = NULL
+Credit_Card$BILL_AMT3 = NULL
+Credit_Card$BILL_AMT4 = NULL
+Credit_Card$BILL_AMT5 = NULL
+Credit_Card$BILL_AMT6 = NULL
+
+Credit_Card$PAY_AMT1 = NULL
+Credit_Card$PAY_AMT2 = NULL
+Credit_Card$PAY_AMT3 = NULL
+Credit_Card$PAY_AMT4 = NULL
+Credit_Card$PAY_AMT5 = NULL
+Credit_Card$PAY_AMT6 = NULL
+```
+
+Antes de aplicar algun modelo de ML vamos a separar la data en conjunto de entrenamiento y conjunto de pruebas.
+Primero realuizaré el modelo basandome en lo que se vió en clases.
+
+```{r}
+set.seed(42)
+sample <- sample(1:nrow(Credit_Card), 8000)
+
+trainData <- Credit_Card[sample,]
+testData <- Credit_Card[-sample,]
+
+modeloNB_clases <- naiveBayes(default.payment.next.month ~ ., data = trainData)
+pred <- predict(modeloNB_clases, testData, type ="raw")
+
+modeloNB_clases
+```
+
+Ahora, se evaluará realizar lo mismo pero desde el modelo visto en ayudantia. 
+```{r}
+CreditLinear <- stan_glm(default.payment.next.month ~ ., data = Credit_Card, family = gaussian)
+summary(CreditLinear)
+
+model_nb_ayudantia <- naiveBayes(default.payment.next.month ~ ., Credit_Card, laplace=1)
+pred_nb_ayudantia <- predict(model_nb_ayudantia, newdata = testData)
+```
+
+
+
+## Evaluación del modelo visto en clases
+
+Calculamos el AUC para evaluar la capacidad del modelo de predecir. Este indice varia entre 0.5 y 1, donde 1 es mejor.
+
+```{r}
+testData$prob <- pred[,2]
+curva_roc <- roc(default.payment.next.month ~ prob, data = testData)
+plot(curva_roc)    
+auc(curva_roc)
+```
+
+Como el AUC es un valor cercano a uno, se determina que el modelo predice bien utilizando las variables elegidas. 
+
+
+
+
+
+
