@@ -1,0 +1,34 @@
+---
+title: "Actividad Ayudantia 11"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Objetivo 
+
+Para la actividad de esta ayudantia realizaran el analisis de arbol de decision a partir de alguno de los dos data sets que quedaron subidos. Para el caso de Credit Card el objetivo sera clasificar si el cliente va a pagar o no el credito que adeuda. Mientras para el caso de Hotel Bookings el objetivo sera determinar si la reserva del hotel sera o no cancelada. (Comparen los resultados obtenidos mediante arboles de decision con los modelos de regresion logistica, naive bayes y KNN)
+
+# Importar Librerías
+```{r, message=FALSE, warning=FALSE}
+library(plyr)
+library(ggplot2)
+#library(tidyverse)
+#library(tidymodels)
+library(discrim)
+library(caret)
+library(pROC)
+library(readr)
+```
+
+# Cargar Datos
+
+```{r}
+setwd("C:/Users/Felipe/Documents/GitHub/Entregas_mineria_de_datos/Ayudantias/Actividad Ayudantia 11")
+Hotel <- read_csv("C:/Users/Felipe/Documents/GitHub/Entregas_mineria_de_datos/Ayudantias/Actividad Ayudantia 11/hotel_bookings.csv")
+View(Hotel)
+attach(Hotel)
+```
+

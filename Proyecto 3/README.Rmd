@@ -9,11 +9,11 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Objetivo 
 
-El objetivo principal de este encargo es crear un programa computacional que permita diferenciar lasactividades realizadas en bicicleta o a pie según sus características como distancia recorrida, velocidad  promedio u otro atributo. Como objetivo secundario se espera que su programa permita identificar aquellas actividades que fueron registradas erróneamente por el usuario. La base de datos incluye 167.615 actividades y 17 variables.
+El objetivo principal de este encargo es crear un programa computacional que permita diferenciar las actividades realizadas en bicicleta o a pie según sus características como distancia recorrida, velocidad  promedio u otro atributo. Como objetivo secundario se espera que su programa permita identificar aquellas actividades que fueron registradas erróneamente por el usuario. La base de datos incluye 167.615 actividades y 17 variables.
 
 # Importar Librerías
 ```{r, message=FALSE, warning=FALSE}
-library(tidyverse)
+#library(tidyverse)
 library(e1071)
 library(caret)
 library(rstan)
@@ -26,9 +26,29 @@ library(rstanarm)
 setwd("C:/Users/Felipe/Documents/GitHub/Entregas_mineria_de_datos/Proyecto 3")
 data<- readRDS("C:/Users/Felipe/Documents/GitHub/Entregas_mineria_de_datos/Proyecto 3/endurance.rds")
 View(data)
+summary(data)
+attach(data)
 ```
 
 # Limpieza de  datos
+
+## Eleccion de variables
+
+Elimino "start_date_local" y "device_name" dado que la fecha de incorporación o de creación del perfil no es relevante para diferenciar las actividades realizadas en bicicleta o a pie.
+El valor identificador de cada atleta no permite realizar un analisis sobre la actividad realizada, dado que solo interesan los parametros obtenidos por la actividad, al igual que la columna reference al "id" de la iteración. 
+
+"Records" fue eliminado dado que no es relevante saber si la iteración grabada resultó en un record frente al resto o no. 
+
+A pesar de que la información obtenida por un "heartrate" sería relevante para formar una relación entre el deporte realizado y el comportamiento del reloj, la base de datos no aporta esa información y no es relevante para el objetivo saber si se tiene o no un "heartrate" por lo que la variable "has_heartrate" fue eliminada. 
+
+```{r}
+data$start_date_local = NULL
+data$device_name = NULL
+data$athlete = NULL
+data$id = NULL
+data$records = NULL
+data$has_heartrate = NULL
+```
 
 ## Busqueda de datos faltantes
 
@@ -37,6 +57,30 @@ data[data == ""] <- NA
 data %>%  summarise_all(funs(sum(is.na(.))))
 ```
 
-# Eleccion de variables
+# Transformación de Variables
+
+La columna del tipo de deporte efectuado se encuentra indicando el tipo de deporte que supuestamente realizó esa iteración. Sin embargo, dado que es de tipo caracter y dado que dentro de esa misma columna hay 4 posibles tipos de deporte, pretendo separar esa información en variables booleanas (representado en valores numericos enteros binarios) en donde cada variable haga referencia a un tipo de deporte en particular. 
+
+```{r}
+unique(data$type)
+
+data$type_Ride <- (data$type == "Ride") %>% as.numeric()
+data$type_Run <- (data$type == "Run") %>% as.numeric()
+data$type_Walk <- (data$type == "Walk") %>% as.numeric()
+data$type_Hike <- (data$type == "Hike") %>% as.numeric()
+data$type_EBikeRide <- (data$type == "EBikeRide") %>% as.numeric()
+
+data$type = NULL
+```
 
 # Lógica
+
+Podria mostrar un grafico del comprotamirento de las variables y ver como son con las regresiones. Hay una cosa en una de las clases que hace fuerza bruta con los modelos y ve la mejor combinación para regresión multiple. 
+
+¿Serviria hacer una regresión lineal entre calorias y otras variables para ver si existe relación entre las calorias quemadas y el deporte efectuado? 
+
+¿debo tomar los datos, predecir a que tipo pertenecen y despues comparar eso con el valor que sale en la base de datos? 
+
+¿debo ocupar una mitad de datos para entrenar y otra para predecir?
+
+Tengo mis columnas con un 1 y un 0 igual que en el resto de los ejercicios. Podría predecir con los valores numericos y ver si predicen el 1 o el 0 de cada una de esas variables booleanas creadas por mi. 
