@@ -15,8 +15,8 @@ Para la actividad de esta ayudantia realizaran el analisis de arbol de decision 
 ```{r, message=FALSE, warning=FALSE}
 library(plyr)
 library(ggplot2)
-#library(tidyverse)
-#library(tidymodels)
+library(tidyverse)
+library(tidymodels)
 library(discrim)
 library(caret)
 library(pROC)
@@ -26,9 +26,130 @@ library(readr)
 # Cargar Datos
 
 ```{r}
-setwd("C:/Users/Felipe/Documents/GitHub/Entregas_mineria_de_datos/Ayudantias/Actividad Ayudantia 11")
-Hotel <- read_csv("C:/Users/Felipe/Documents/GitHub/Entregas_mineria_de_datos/Ayudantias/Actividad Ayudantia 11/hotel_bookings.csv")
+#Windows
+#setwd("C:/Users/Felipe/Documents/GitHub/Entregas_mineria_de_datos/Ayudantias/Actividad Ayudantia 11")
+#Hotel <- read_csv("C:/Users/Felipe/Documents/GitHub/Entregas_mineria_de_datos/Ayudantias/Actividad Ayudantia 11/hotel_bookings.csv")
+
+#Mac
+Hotel <- read_csv("/Users/felipeleivap/Documents/GitHub/Entregas_mineria_de_datos/Ayudantias/Actividad Ayudantia 11/hotel_bookings.csv")
+
 View(Hotel)
 attach(Hotel)
 ```
+
+## Eleccion de variables
+
+Elimino todas las avriables que son insignificantes para determinar si se cancelo la reserva o no
+
+```{r}
+data = Hotel[-c(1,3:7,13:16,20,21,23:25,27:32)]
+```
+
+
+## Busqueda de datos faltantes
+
+```{r}
+data[data == ""] <- NA
+data %>%  summarise_all(funs(sum(is.na(.))))
+
+data <- data %>% filter(!(is.na(data$children)))
+
+data[data == ""] <- NA
+data %>%  summarise_all(funs(sum(is.na(.))))
+```
+
+## Implementacion Decision Trees, separar data en Test y Train
+
+```{r separar data}
+data_split <- initial_split(data, prop = 0.8)
+
+train_data <- training(data_split) 
+test_data <- testing(data_split)
+```
+
+## Crear Modelo
+
+```{r receta}
+receta <- recipe(is_canceled ~ ., data = train_data)
+receta
+
+modelo_trees <-decision_tree(tree_depth = 5, min_n = 10) %>% set_engine("rpart") %>% set_mode("classification")
+modelo_trees
+```
+
+## Implementar Modelo
+
+ESTE MODELO PRESENTO UN ERROR DESCONOCIDO, NO LO PUDE ARREGLAR :C Error: For a classification model, the outcome should be a factor. 
+```{r fit modelo}
+
+fitea <- function(mod){
+  
+  modelo_fit <- 
+  workflow() %>% 
+  add_model(mod) %>% 
+  add_recipe(receta) %>% 
+  fit(data = train_data)
+
+model_pred <- 
+  predict(modelo_fit, test_data, type = "prob") %>% 
+  bind_cols(test_data) 
+
+return(model_pred %>% 
+  roc_auc(truth = is_canceled,.pred_0))
+}
+
+fitea(modelo_trees)
+
+```
+
+## Regresion Logistica
+
+```{r modelo regresion logistica}
+modelo_rl <- 
+  logistic_reg() %>% 
+  set_engine("glm")
+
+fitea(modelo_rl)
+```
+
+## Naive Bayes
+
+```{r modelo naive bayes}
+library(naivebayes)
+
+modelo_nb <-
+  naive_Bayes(smoothness = .8) %>%
+  set_engine("naivebayes")
+
+fitea(modelo_nb)
+```
+
+## KNN
+
+```{r modelo KNN}
+library(kknn)
+
+modelo_knn <-
+  nearest_neighbor(neighbors = 5) %>% 
+  set_engine("kknn") %>% 
+  set_mode("classification")
+
+fit_mod(modelo_knn)
+```
+
+- Podemos ver que en este caso el modelo de Naive Bayes y el modelo de Regresion Logistica son los que obtienen los mejores resultados al clasificar con un AUC de .89-.088.
+
+```{r plot tree ,fig.width=15, fig.height=8}
+library(rpart)
+library(rpart.plot)
+
+censo <- rpart(income~., data = train, method = "class")
+
+rpart.plot(censo)
+
+```
+
+
+
+
 

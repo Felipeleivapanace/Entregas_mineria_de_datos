@@ -13,19 +13,29 @@ El objetivo principal de este encargo es crear un programa computacional que per
 
 # Importar Librerías
 ```{r, message=FALSE, warning=FALSE}
-#library(tidyverse)
+library(tidyverse)
 library(e1071)
 library(caret)
-library(rstan)
-library(rstanarm)
+library(olsrr)
+library(pROC)
+library(ggplot2)
+library(class)
+library(tidymodels)
+library(discrim) 
+#library(rstan)
+#library(rstanarm)
 ```
 
 # Cargar Datos
 
 ```{r}
-setwd("C:/Users/Felipe/Documents/GitHub/Entregas_mineria_de_datos/Proyecto 3")
-data<- readRDS("C:/Users/Felipe/Documents/GitHub/Entregas_mineria_de_datos/Proyecto 3/endurance.rds")
-View(data)
+#En Windows
+#setwd("C:/Users/Felipe/Documents/GitHub/Entregas_mineria_de_datos/Proyecto 3")
+#data<- readRDS("C:/Users/Felipe/Documents/GitHub/Entregas_mineria_de_datos/Proyecto 3/endurance.rds")
+
+#En Mac
+data = readRDS("~/Documents/GitHub/Entregas_mineria_de_datos/Proyecto 3/endurance.rds")
+
 summary(data)
 attach(data)
 ```
@@ -41,13 +51,16 @@ El valor identificador de cada atleta no permite realizar un analisis sobre la a
 
 A pesar de que la información obtenida por un "heartrate" sería relevante para formar una relación entre el deporte realizado y el comportamiento del reloj, la base de datos no aporta esa información y no es relevante para el objetivo saber si se tiene o no un "heartrate" por lo que la variable "has_heartrate" fue eliminada. 
 
+El tiempo transcurrido (elapsed time) tambien fue eliminado dado que es mas detallada la información del tiempo de movimiento que del tiempo transcurrido desde el inicio del dispositivo a la hora de categorizar deportes. 
+
 ```{r}
 data$start_date_local = NULL
 data$device_name = NULL
 data$athlete = NULL
-data$id = NULL
+data$id = NULL 
 data$records = NULL
 data$has_heartrate = NULL
+data$elapsed_time = NULL
 ```
 
 ## Busqueda de datos faltantes
@@ -57,30 +70,257 @@ data[data == ""] <- NA
 data %>%  summarise_all(funs(sum(is.na(.))))
 ```
 
+Se demuestra la existencia de datos faltantes en la columna de "elev_high" y de "elev_low" por lo cual decido eliminar las columnas den donde se encuentren datos faltantes para no trabajar con supuestos. 
+
+```{r}
+data <- data %>% filter(!(is.na(data$elev_high)))
+data <- data %>%  filter(!(is.na(data$elev_low)))
+```
+
+Se revisa si se eliminaron los datos faltantes.
+```{r}
+data[data == ""] <- NA
+data %>%  summarise_all(funs(sum(is.na(.))))
+```
+
+Se valida que no quedan datos faltantes.
+
+## Busqueda de datos atipicos
+
+Mediante un estudio de regresiones realizado a la data pero omitido para la entrega, se observó la precencia de muchos valores atipicos en cada una de las variables, por lo cual se procede a analizarlos y eliminarlos. 
+
+Empezando con las calorias, se observa un grafico totalmente desproporcionado debido a la existencia de multiples datos atipicos alejados de los valores medios. Debido a esto, procedo a eliminar todos los valores superiores a 3000 calorias por su poca probabilidad de ser un entrenamiento real, considerando el exceso de ejercicio cardiaco realizado y la cantidad de tiempo que demanda quemar esa cantidad de calorias durante un entrenamiento normal. Tambien se eliminaran los valores que sean equivalentes a 0 porque demuestran un error en la medición. Si van a realizar un deporte, al menos una caloria debe ser quemada. 
+
+Se conserva la existencia de algunos datos atipicos.
+
+```{r}
+ggplot(data, aes(x= type, y=calories))+ geom_boxplot(outlier.colour="red", outlier.shape=8,outlier.size=4)
+
+data_actualizada <- data %>% filter(data$calories < 3000)
+data_actualizada <- data_actualizada %>% filter(data_actualizada$calories > 1)
+ggplot(data_actualizada, aes(x= type, y=calories))+ geom_boxplot(outlier.colour="red", outlier.shape=8,outlier.size=4)
+```
+
+```{r}
+ggplot(data_actualizada, aes(x= type, y=distance))+ geom_boxplot(outlier.colour="red", outlier.shape=8,outlier.size=4)
+
+data_actualizada = data_actualizada[data_actualizada$distance < 40000,]
+ggplot(data_actualizada, aes(x= type, y=distance))+ geom_boxplot(outlier.colour="red", outlier.shape=8,outlier.size=4)
+```
+
+En el caso de la velocidad, no tiene sentido que la maxima velocidad sea 0 por lo cual se eliminan todos esos valores. 
+```{r}
+data_actualizada = data_actualizada[data_actualizada$max_speed > 1 ,]
+#ggplot(data_actualizada, aes(x= type, y=max_speed))+ geom_boxplot(outlier.colour="red", outlier.shape=8,outlier.size=4)
+```
+
+En el caso de las elevaciones, se detectó la existencia de valores negativos, los cuales no tienen sentido y se eliminaron.
+
+```{r}
+data_actualizada = data_actualizada[data_actualizada$elev_low > 0,]
+data_actualizada = data_actualizada[data_actualizada$elev_high > 0,]
+```
+
+```{r}
+ggplot(data_actualizada, aes(x= type, y=moving_time))+ geom_boxplot(outlier.colour="red", outlier.shape=8,outlier.size=4)
+
+data_actualizada = data_actualizada[data_actualizada$moving_time < 15000,]
+ggplot(data_actualizada, aes(x= type, y=moving_time))+ geom_boxplot(outlier.colour="red", outlier.shape=8,outlier.size=4)
+```
+
+Con respecto a la velocidad promedio, se eliminaran los valores inferiores a 1 dado que demuestran una velocidad de movimiento atipico. 
+```{r}
+data_actualizada = data_actualizada[data_actualizada$average_speed > 1 ,]
+#ggplot(data_actualizada, aes(x= type, y=average_speed))+ geom_boxplot(outlier.colour="red", outlier.shape=8,outlier.size=4)
+```
+
+Por ultimo, con respecto a la total elevación ganada. Se deja en 5000 porque existe una posibilidad de elevarse en 5000 metros de altura sabiendo que el everest tiene 8000 metros de altura. 
+```{r}
+ggplot(data_actualizada, aes(x= type, y=total_elevation_gain))+ geom_boxplot(outlier.colour="red", outlier.shape=8,outlier.size=4)
+
+data_actualizada = data_actualizada[data_actualizada$total_elevation_gain < 1700,]
+ggplot(data_actualizada, aes(x= type, y=total_elevation_gain))+ geom_boxplot(outlier.colour="red", outlier.shape=8,outlier.size=4)
+```
+
+# Lógica
+
+La logica implica la utilizaciòn de modelos de machine lerning del tipo supervidado (dado que intentaré predecir unos valores con los valores pasados de ese algo), en donde se utilizaran mecanismos de clasificaciòn dado que los valores a predecir son variables discretas, es decir, que se mueven en un intervalo de valores conocidos. 
+
+El objetivo del proyecto es  diferenciar las actividades realizadas en bicicleta o a pie, por lo cual se espera predecir las actividades realizadas en bicicleta (Ride y EBikeRide) y a pie (Run,Walk y Hike), sin descartar ninguna. 
+
 # Transformación de Variables
 
 La columna del tipo de deporte efectuado se encuentra indicando el tipo de deporte que supuestamente realizó esa iteración. Sin embargo, dado que es de tipo caracter y dado que dentro de esa misma columna hay 4 posibles tipos de deporte, pretendo separar esa información en variables booleanas (representado en valores numericos enteros binarios) en donde cada variable haga referencia a un tipo de deporte en particular. 
 
 ```{r}
-unique(data$type)
+unique(data_actualizada$type)
 
-data$type_Ride <- (data$type == "Ride") %>% as.numeric()
-data$type_Run <- (data$type == "Run") %>% as.numeric()
-data$type_Walk <- (data$type == "Walk") %>% as.numeric()
-data$type_Hike <- (data$type == "Hike") %>% as.numeric()
-data$type_EBikeRide <- (data$type == "EBikeRide") %>% as.numeric()
+data_actualizada$type_Ride <- (data_actualizada$type == "Ride") %>% as.numeric()
+data_actualizada$type_Run <- (data_actualizada$type == "Run") %>% as.numeric()
+data_actualizada$type_Walk <- (data_actualizada$type == "Walk") %>% as.numeric()
+data_actualizada$type_Hike <- (data_actualizada$type == "Hike") %>% as.numeric()
+data_actualizada$type_EBikeRide <- (data_actualizada$type == "EBikeRide") %>% as.numeric()
 
-data$type = NULL
+data_actualizada$type = NULL
 ```
 
-# Lógica
 
-Podria mostrar un grafico del comprotamirento de las variables y ver como son con las regresiones. Hay una cosa en una de las clases que hace fuerza bruta con los modelos y ve la mejor combinación para regresión multiple. 
 
-¿Serviria hacer una regresión lineal entre calorias y otras variables para ver si existe relación entre las calorias quemadas y el deporte efectuado? 
 
-¿debo tomar los datos, predecir a que tipo pertenecen y despues comparar eso con el valor que sale en la base de datos? 
+## Muestreo aleatorio simple sin remplazo 
 
-¿debo ocupar una mitad de datos para entrenar y otra para predecir?
+DEBERIA SER ESTRATIFICADO, ESE ES EL MEJOR ya que divide los datos en varias particiones y se saca muestras aleatorias de cada partición. Sacar solo con el muestreo aleatorio simple arriesga a polarizar la muestra en caso de que sean muchos 1 o 0 en la base de datos. Estratificado sacaria por ejemplo el 10% de los True y el 10% de los False
 
-Tengo mis columnas con un 1 y un 0 igual que en el resto de los ejercicios. Podría predecir con los valores numericos y ver si predicen el 1 o el 0 de cada una de esas variables booleanas creadas por mi. 
+Usualmente se toma un 80% de entrenamiento y 20% para la prueba, en el cual se ve la acurracy del modelo pero las metricas se toman con el de entrenamiento. 
+
+```{r}
+set.seed(42)
+muestra_aleatoria <- sample(1:nrow(data_actualizada), nrow(data_actualizada)*.8)
+
+data_de_entrenamiento <- data_actualizada[muestra_aleatoria,]
+data_de_prueba <- data_actualizada[-muestra_aleatoria,]
+```
+
+## Metodo de clasificación sobre variables creadas
+
+### Regresión logistica Multiple
+
+Es un modelo simple y liviano computacionalmente por lo cual permite darle una caracter de introducción al estudio de los valores.
+Por problemas de almacenamiento, no se permite ingresar mas variables al modelo dado que colapsa computacionalmente. s
+
+```{r}
+modelo_logistico <- glm(type_Ride ~ calories + distance, data_de_entrenamiento, family = "binomial")
+summary(modelo_logistico)
+
+#modelo_logistico <- glm(type_Ride ~ calories + distance + elev_high + elev_low + max_speed + moving_time + average_speed + total_elevation_gain, data_de_entrenamiento, family = "binomial")
+
+data_de_prueba$prob_multi_modelo_logistico_Ryde <- predict(modelo_logistico, data_de_prueba, type=c("response"))
+auc(roc(type_Ride ~ prob_multi_modelo_logistico_Ryde, data = data_de_prueba))
+
+data_de_prueba$prob_multi_modelo_logistico_Ryde = NULL #Para mantener orden en data_de_entrenamiento le borro esto siempre 
+```
+
+## Modelos Parametricos
+### Modelo de Naive Bayes
+Dada una distribución condicional de probabilidad, la salida del modelo indica para un dato, si pertenee o no a una clase especificada. Se utiliza este modelo dado que la base de datos aun cuenta con modelos atipicos y este modelo es robusto frente a valores atipicos y datos irrelevantes. 
+
+```{r}
+modeloNB_Ryde <- naiveBayes(type_Ride ~ calories + distance + elev_high + elev_low + max_speed + moving_time + average_speed + total_elevation_gain, data = data_de_entrenamiento)
+prediccion_NB_Ryde <- predict(modeloNB_Ryde, data_de_entrenamiento, type ="raw")
+#modeloNB_Ryde
+
+data_de_entrenamiento$prob_NB_Ryde <- prediccion_NB_Ryde[,2]
+curva_roc_NB_Ryde <- roc(type_Ride ~ data_de_entrenamiento$prob_NB_Ryde, data = data_de_entrenamiento)
+plot(curva_roc_NB_Ryde)    
+auc(curva_roc_NB_Ryde)
+
+data_de_entrenamiento$prob_NB_Ryde = NULL
+```
+
+## Modelos no parametricos
+### K vecinos mas cercanos
+Busca una división en los datos a partir del concepto de vecindad. Aprende de los datos ingresados y no de una formula matematica. 
+```{r}
+Clase_a_predecir_entrenamiento <- factor(data_de_entrenamiento$type_Ride)
+Clase_a_predecir_prueba <- factor(data_de_prueba$type_Ride)
+
+data_de_entrenamiento_2=data_de_entrenamiento
+data_de_entrenamiento_2$elev_low = as.numeric(data_de_entrenamiento_2$elev_low)
+data_de_entrenamiento_2$elev_high = as.numeric(data_de_entrenamiento_2$elev_high)
+data_de_entrenamiento_2$max_speed = as.numeric(data_de_entrenamiento_2$max_speed)
+data_de_entrenamiento_2$average_speed = as.numeric(data_de_entrenamiento_2$average_speed)
+
+data_de_prueba_2=data_de_prueba
+data_de_prueba_2$elev_low = as.numeric(data_de_prueba_2$elev_low)
+data_de_prueba_2$elev_high = as.numeric(data_de_prueba_2$elev_high)
+data_de_prueba_2$max_speed = as.numeric(data_de_prueba_2$max_speed)
+data_de_prueba_2$average_speed = as.numeric(data_de_prueba_2$average_speed)
+
+data_de_entrenamiento_escalada <-  scale(data_de_entrenamiento_2) %>% data.frame()
+data_de_prueba_escalada <- scale(data_de_prueba_2) %>% data.frame()
+
+modeloKnn <- knn(data_de_entrenamiento_escalada[,-c(9:13)], data_de_prueba_escalada[,-c(9:13)], cl = data_de_entrenamiento_escalada$type_Ride, k = 15, prob = TRUE)    ### AQUI VA LA DUDA QUE LE PREGUNTE AL PROFE
+
+data_de_prueba_2$prob_knn_Ride <- modeloKnn %>% as.character() %>% as.numeric()
+
+data_de_prueba_2$type_Ride <- Clase_a_predecir_prueba %>% as.character() %>% as.numeric()
+
+curva_roc_KNN_Ryde <- roc(type_Ride ~ data_de_prueba_2$prob_knn_Ride, data = data_de_prueba_2)
+plot(curva_roc_KNN_Ryde)    
+auc(curva_roc_KNN_Ryde)
+
+data_de_prueba_2$prob_knn_Ride = NULL
+data_de_prueba_2$KNN_Ryde = NULL
+```
+
+## Modelo arbol de decisión 
+
+Luego, creamos la "receta" del modelo, que consiste en la relacion de "caja negra" entre las variables de entrada y las variables de salida. En este caso, la receta será modelar Exited en funcion de todas las variables presentes en el conjunto de datos. 
+
+Ahora si creamos el modelo, donde utilizaremos un arbol de decision con 5 capas de decision, y un minimo numero de entidades por hoja (poda) de 10. La libreria que se utiliza para calcular este modelo sera la de rpart, que viene precargada en los paquetes que estamos utilizando. Con este paso solo definimos el modelo, aun lo calculamos.
+
+```{r}
+
+receta <- 
+  recipe(type_Ride ~ calories + distance + elev_high + elev_low + max_speed + moving_time + average_speed + total_elevation_gain, data = data_de_entrenamiento) 
+receta
+
+modelo <-
+  decision_tree(tree_depth = 5, min_n = 10) %>% 
+  set_engine("rpart") %>% 
+  set_mode("classification")
+
+modelo
+```
+
+
+```{r}
+data_de_entrenamiento$type_Ride <- factor(data_de_entrenamiento$type_Ride)
+data_de_prueba$type_Ride <- factor(data_de_prueba$type_Ride)
+
+fitea <- function(mod){
+  
+  modelo_fit <- 
+  workflow() %>% 
+  add_model(mod) %>% 
+  add_recipe(receta) %>% 
+  fit(data = data_de_entrenamiento)
+
+model_pred <- 
+  predict(modelo_fit, data_de_prueba, type = "prob") %>% 
+  bind_cols(data_de_prueba) 
+
+return(model_pred %>% roc_auc(truth = type_Ride, .pred_0))
+}
+
+fitea(modelo)
+
+```
+
+# Support Vector Machines
+
+Es un modelo que busca la mejor manera de dividir un espacio a traves de algunos puntos en este. Luego, clasifica sobre esa división. Debido a la cantidad de variables y dimensiones, no es posible impleentar este modelo por limitaciones en la capacidad computacional. 
+
+## Evaluar modelo supervisados
+
+### Matriz de confusión
+Permite determinar si el metodo implementado sobre la data estimó bien los valores, dado que da la posibilidad de determinar falsos o verdaderos positivos o negativos. 
+
+### ROC
+Esta curva caracteriza la compensación entre golpes positivos y falsas alarmas trazando la tasa de verdaderos positivos en el eje Y contra la tasa de falsos positivos en el eje X para diferente valores. Es otra forma de ver la matriz de confusión. Una buena curva ROC se pega mucho al eje Y. 
+
+### AUC 
+Corresponde al area bajo la curva ROC.Sintetiza el rendimiento del modelo. Mientras mas area, es mejor. 
+
+```{r}
+#prob_1 <- predict(modelo_logistico,type=c("response"))
+
+#data$prob_Ride <- prob_1
+
+#curva_roc_1 <- roc(type_Ride ~ prob_Ride, data = data)
+
+#plot(curva_roc_1)    
+
+#auc(curva_roc_1)
+
+```
