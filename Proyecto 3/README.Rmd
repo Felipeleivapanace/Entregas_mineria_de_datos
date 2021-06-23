@@ -22,19 +22,17 @@ library(ggplot2)
 library(class)
 library(tidymodels)
 library(discrim) 
-#library(rstan)
-#library(rstanarm)
 ```
 
 # Cargar Datos
 
 ```{r}
 #En Windows
-#setwd("C:/Users/Felipe/Documents/GitHub/Entregas_mineria_de_datos/Proyecto 3")
-#data<- readRDS("C:/Users/Felipe/Documents/GitHub/Entregas_mineria_de_datos/Proyecto 3/endurance.rds")
+setwd("C:/Users/Felipe/Documents/GitHub/Entregas_mineria_de_datos/Proyecto 3")
+data<- readRDS("C:/Users/Felipe/Documents/GitHub/Entregas_mineria_de_datos/Proyecto 3/endurance.rds")
 
 #En Mac
-data = readRDS("~/Documents/GitHub/Entregas_mineria_de_datos/Proyecto 3/endurance.rds")
+#data = readRDS("~/Documents/GitHub/Entregas_mineria_de_datos/Proyecto 3/endurance.rds")
 
 summary(data)
 attach(data)
@@ -142,11 +140,23 @@ data_actualizada = data_actualizada[data_actualizada$total_elevation_gain < 1700
 ggplot(data_actualizada, aes(x= type, y=total_elevation_gain))+ geom_boxplot(outlier.colour="red", outlier.shape=8,outlier.size=4)
 ```
 
+
 # Lógica
 
 La logica implica la utilizaciòn de modelos de machine lerning del tipo supervidado (dado que intentaré predecir unos valores con los valores pasados de ese algo), en donde se utilizaran mecanismos de clasificaciòn dado que los valores a predecir son variables discretas, es decir, que se mueven en un intervalo de valores conocidos. 
 
 El objetivo del proyecto es  diferenciar las actividades realizadas en bicicleta o a pie, por lo cual se espera predecir las actividades realizadas en bicicleta (Ride y EBikeRide) y a pie (Run,Walk y Hike), sin descartar ninguna. 
+
+## Evaluar modelo supervisados
+
+### Matriz de confusión
+Permite determinar si el metodo implementado sobre la data estimó bien los valores, dado que da la posibilidad de determinar falsos o verdaderos positivos o negativos. 
+
+### ROC
+Esta curva caracteriza la compensación entre golpes positivos y falsas alarmas trazando la tasa de verdaderos positivos en el eje Y contra la tasa de falsos positivos en el eje X para diferente valores. Es otra forma de ver la matriz de confusión. Una buena curva ROC se pega mucho al eje Y. 
+
+### AUC 
+Corresponde al area bajo la curva ROC.Sintetiza el rendimiento del modelo. Mientras mas area, es mejor. 
 
 # Transformación de Variables
 
@@ -165,8 +175,6 @@ data_actualizada$type = NULL
 ```
 
 
-
-
 ## Muestreo aleatorio simple sin remplazo 
 
 DEBERIA SER ESTRATIFICADO, ESE ES EL MEJOR ya que divide los datos en varias particiones y se saca muestras aleatorias de cada partición. Sacar solo con el muestreo aleatorio simple arriesga a polarizar la muestra en caso de que sean muchos 1 o 0 en la base de datos. Estratificado sacaria por ejemplo el 10% de los True y el 10% de los False
@@ -181,76 +189,323 @@ data_de_entrenamiento <- data_actualizada[muestra_aleatoria,]
 data_de_prueba <- data_actualizada[-muestra_aleatoria,]
 ```
 
-## Metodo de clasificación sobre variables creadas
+## Datos a Factores
 
-### Regresión logistica Multiple
+## Escalar Datos
 
-Es un modelo simple y liviano computacionalmente por lo cual permite darle una caracter de introducción al estudio de los valores.
-Por problemas de almacenamiento, no se permite ingresar mas variables al modelo dado que colapsa computacionalmente. s
-
-```{r}
-modelo_logistico <- glm(type_Ride ~ calories + distance, data_de_entrenamiento, family = "binomial")
-summary(modelo_logistico)
-
-#modelo_logistico <- glm(type_Ride ~ calories + distance + elev_high + elev_low + max_speed + moving_time + average_speed + total_elevation_gain, data_de_entrenamiento, family = "binomial")
-
-data_de_prueba$prob_multi_modelo_logistico_Ryde <- predict(modelo_logistico, data_de_prueba, type=c("response"))
-auc(roc(type_Ride ~ prob_multi_modelo_logistico_Ryde, data = data_de_prueba))
-
-data_de_prueba$prob_multi_modelo_logistico_Ryde = NULL #Para mantener orden en data_de_entrenamiento le borro esto siempre 
-```
-
-## Modelos Parametricos
-### Modelo de Naive Bayes
-Dada una distribución condicional de probabilidad, la salida del modelo indica para un dato, si pertenee o no a una clase especificada. Se utiliza este modelo dado que la base de datos aun cuenta con modelos atipicos y este modelo es robusto frente a valores atipicos y datos irrelevantes. 
+ Datos a Factores y Escalar Datos
 
 ```{r}
-modeloNB_Ryde <- naiveBayes(type_Ride ~ calories + distance + elev_high + elev_low + max_speed + moving_time + average_speed + total_elevation_gain, data = data_de_entrenamiento)
-prediccion_NB_Ryde <- predict(modeloNB_Ryde, data_de_entrenamiento, type ="raw")
-#modeloNB_Ryde
-
-data_de_entrenamiento$prob_NB_Ryde <- prediccion_NB_Ryde[,2]
-curva_roc_NB_Ryde <- roc(type_Ride ~ data_de_entrenamiento$prob_NB_Ryde, data = data_de_entrenamiento)
-plot(curva_roc_NB_Ryde)    
-auc(curva_roc_NB_Ryde)
-
-data_de_entrenamiento$prob_NB_Ryde = NULL
-```
-
-## Modelos no parametricos
-### K vecinos mas cercanos
-Busca una división en los datos a partir del concepto de vecindad. Aprende de los datos ingresados y no de una formula matematica. 
-```{r}
-Clase_a_predecir_entrenamiento <- factor(data_de_entrenamiento$type_Ride)
-Clase_a_predecir_prueba <- factor(data_de_prueba$type_Ride)
-
 data_de_entrenamiento_2=data_de_entrenamiento
+objetivo_secundario_entrenamiento = data_de_entrenamiento
+
+data_de_entrenamiento$elev_low = as.numeric(data_de_entrenamiento$elev_low)
+data_de_entrenamiento$elev_high = as.numeric(data_de_entrenamiento$elev_high)
+data_de_entrenamiento$max_speed = as.numeric(data_de_entrenamiento$max_speed)
+data_de_entrenamiento$average_speed = as.numeric(data_de_entrenamiento$average_speed)
+
 data_de_entrenamiento_2$elev_low = as.numeric(data_de_entrenamiento_2$elev_low)
 data_de_entrenamiento_2$elev_high = as.numeric(data_de_entrenamiento_2$elev_high)
 data_de_entrenamiento_2$max_speed = as.numeric(data_de_entrenamiento_2$max_speed)
 data_de_entrenamiento_2$average_speed = as.numeric(data_de_entrenamiento_2$average_speed)
 
 data_de_prueba_2=data_de_prueba
+objetivo_secundario_prueba = data_de_prueba
+
+data_de_prueba$elev_low = as.numeric(data_de_prueba$elev_low)
+data_de_prueba$elev_high = as.numeric(data_de_prueba$elev_high)
+data_de_prueba$max_speed = as.numeric(data_de_prueba$max_speed)
+data_de_prueba$average_speed = as.numeric(data_de_prueba$average_speed)
+
 data_de_prueba_2$elev_low = as.numeric(data_de_prueba_2$elev_low)
 data_de_prueba_2$elev_high = as.numeric(data_de_prueba_2$elev_high)
 data_de_prueba_2$max_speed = as.numeric(data_de_prueba_2$max_speed)
 data_de_prueba_2$average_speed = as.numeric(data_de_prueba_2$average_speed)
 
-data_de_entrenamiento_escalada <-  scale(data_de_entrenamiento_2) %>% data.frame()
-data_de_prueba_escalada <- scale(data_de_prueba_2) %>% data.frame()
+types_entrenamiento=data.frame(data_de_entrenamiento[9:13])
+types_prueba=data.frame(data_de_prueba[9:13])
 
-modeloKnn <- knn(data_de_entrenamiento_escalada[,-c(9:13)], data_de_prueba_escalada[,-c(9:13)], cl = data_de_entrenamiento_escalada$type_Ride, k = 15, prob = TRUE)    ### AQUI VA LA DUDA QUE LE PREGUNTE AL PROFE
+data_de_entrenamiento_escalada <-  scale(data_de_entrenamiento[,-c(9:13)]) %>% data.frame()
+data_de_prueba_escalada <- scale(data_de_prueba[,-c(9:13)]) %>% data.frame()
 
-data_de_prueba_2$prob_knn_Ride <- modeloKnn %>% as.character() %>% as.numeric()
+data_de_entrenamiento_escalada_2 <- scale(data_de_entrenamiento_2[,-c(9:13)]) %>% data.frame()
+data_de_prueba_escalada_2 <- scale(data_de_prueba_2[,-c(9:13)]) %>% data.frame()
 
-data_de_prueba_2$type_Ride <- Clase_a_predecir_prueba %>% as.character() %>% as.numeric()
+data_de_entrenamiento_escalada = cbind.data.frame(data_de_entrenamiento_escalada,types_entrenamiento)
+data_de_entrenamiento_escalada_2=cbind.data.frame(data_de_entrenamiento_escalada,types_entrenamiento)
+data_de_prueba_escalada=cbind.data.frame(data_de_prueba_escalada,types_prueba)
+data_de_prueba_escalada_2=cbind.data.frame(data_de_prueba_escalada,types_prueba)
 
-curva_roc_KNN_Ryde <- roc(type_Ride ~ data_de_prueba_2$prob_knn_Ride, data = data_de_prueba_2)
-plot(curva_roc_KNN_Ryde)    
-auc(curva_roc_KNN_Ryde)
+objetivo_secundario_entrenamiento_escalado=data_de_entrenamiento_escalada
+objetivo_secundario_prueba_escalado = data_de_prueba_escalada
 
-data_de_prueba_2$prob_knn_Ride = NULL
-data_de_prueba_2$KNN_Ryde = NULL
+data_de_prueba_escalada_2 =data_de_prueba_escalada_2[,1:13]
+data_de_entrenamiento_escalada_2 = data_de_entrenamiento_escalada_2[,1:13]
+```
+
+
+## Metodo de clasificación sobre variables creadas
+
+### Regresión logistica Multiple
+
+Es un modelo simple y liviano computacionalmente por lo cual permite darle una caracter de introducción al estudio de los valores.
+Por problemas de almacenamiento, no se permite ingresar mas variables al modelo dado que colapsa computacionalmente. 
+
+Aqui no entra la data escalada porque tiene que estar con 0 o 1 en el modelo. 
+
+Para el caso del tipo Ride
+
+```{r}
+modelo_logistico_1 <- glm(type_Ride ~ calories + distance, data_de_entrenamiento, family = "binomial")
+summary(modelo_logistico_1)
+
+#modelo_logistico <- glm(type_Ride ~ calories + distance + elev_high + elev_low + max_speed + moving_time + average_speed + total_elevation_gain, data_de_entrenamiento, family = "binomial")
+
+data_de_prueba$prob_multi_modelo_logistico_Ryde <- predict(modelo_logistico_1, data_de_prueba, type=c("response"))
+auc(roc(type_Ride ~ prob_multi_modelo_logistico_Ryde, data = data_de_prueba))
+
+data_de_prueba$prob_multi_modelo_logistico_Ryde = NULL #Para mantener orden en data_de_entrenamiento le borro esto siempre 
+```
+
+Para el caso del tipo Run
+
+```{r}
+modelo_logistico_2 <- glm(type_Run ~ calories + distance, data_de_entrenamiento, family = "binomial")
+summary(modelo_logistico_2)
+
+#modelo_logistico <- glm(type_Ride ~ calories + distance + elev_high + elev_low + max_speed + moving_time + average_speed + total_elevation_gain, data_de_entrenamiento, family = "binomial")
+
+data_de_prueba$prob_multi_modelo_logistico_Run <- predict(modelo_logistico_2, data_de_prueba, type=c("response"))
+auc(roc(type_Run ~ prob_multi_modelo_logistico_Run, data = data_de_prueba))
+
+data_de_prueba$prob_multi_modelo_logistico_Run = NULL #Para mantener orden en data_de_entrenamiento le borro esto siempre 
+```
+
+Para el caso del tipo Walk
+
+```{r}
+modelo_logistico_3 <- glm(type_Walk ~ calories + distance, data_de_entrenamiento, family = "binomial")
+summary(modelo_logistico_3)
+
+#modelo_logistico <- glm(type_Ride ~ calories + distance + elev_high + elev_low + max_speed + moving_time + average_speed + total_elevation_gain, data_de_entrenamiento, family = "binomial")
+
+data_de_prueba$prob_multi_modelo_logistico_Walk <- predict(modelo_logistico_3, data_de_prueba, type=c("response"))
+auc(roc(type_Walk ~ prob_multi_modelo_logistico_Walk, data = data_de_prueba))
+
+data_de_prueba$prob_multi_modelo_logistico_Walk = NULL #Para mantener orden en data_de_entrenamiento le borro esto siempre 
+```
+
+Para el caso del tipo Hike
+
+```{r}
+modelo_logistico_4 <- glm(type_Hike ~ calories + distance, data_de_entrenamiento, family = "binomial")
+summary(modelo_logistico_4)
+
+#modelo_logistico <- glm(type_Ride ~ calories + distance + elev_high + elev_low + max_speed + moving_time + average_speed + total_elevation_gain, data_de_entrenamiento, family = "binomial")
+
+data_de_prueba$prob_multi_modelo_logistico_Hike <- predict(modelo_logistico_4, data_de_prueba, type=c("response"))
+auc(roc(type_Hike ~ prob_multi_modelo_logistico_Hike, data = data_de_prueba))
+
+data_de_prueba$prob_multi_modelo_logistico_Hike = NULL #Para mantener orden en data_de_entrenamiento le borro esto siempre 
+```
+
+Para el caso del tipo EbikeRide
+
+```{r}
+modelo_logistico_5 <- glm(type_EBikeRide ~ calories + distance, data_de_entrenamiento, family = "binomial")
+summary(modelo_logistico_5)
+
+#modelo_logistico <- glm(type_Ride ~ calories + distance + elev_high + elev_low + max_speed + moving_time + average_speed + total_elevation_gain, data_de_entrenamiento, family = "binomial")
+
+data_de_prueba$prob_multi_modelo_logistico_EBikeRide <- predict(modelo_logistico_5, data_de_prueba, type=c("response"))
+auc(roc(type_EBikeRide~ prob_multi_modelo_logistico_EBikeRide, data = data_de_prueba))
+
+data_de_prueba$prob_multi_modelo_logistico_EBikeRide = NULL #Para mantener orden en data_de_entrenamiento le borro esto siempre 
+```
+
+## Modelos Parametricos
+### Modelo de Naive Bayes
+Dada una distribución condicional de probabilidad, la salida del modelo indica para un dato, si pertenee o no a una clase especificada. Se utiliza este modelo dado que la base de datos aun cuenta con modelos atipicos y este modelo es robusto frente a valores atipicos y datos irrelevantes. 
+
+En el caso de Ryde
+
+```{r}
+modeloNB_Ryde <- naiveBayes(type_Ride ~ calories + distance + elev_high + elev_low + max_speed + moving_time + average_speed + total_elevation_gain, data = data_de_entrenamiento_escalada)
+prediccion_NB_Ryde <- predict(modeloNB_Ryde, data_de_entrenamiento_escalada, type ="raw")
+#modeloNB_Ryde
+
+data_de_entrenamiento_escalada$prob_NB_Ryde <- prediccion_NB_Ryde[,2]
+curva_roc_NB_Ryde <- roc(type_Ride ~ data_de_entrenamiento_escalada$prob_NB_Ryde, data = data_de_entrenamiento)
+plot(curva_roc_NB_Ryde)    
+auc(curva_roc_NB_Ryde)
+
+data_de_entrenamiento_escalada$prob_NB_Ryde = NULL
+```
+
+En el caso de Run
+
+```{r}
+modeloNB_Run <- naiveBayes(type_Run ~ calories + distance + elev_high + elev_low + max_speed + moving_time + average_speed + total_elevation_gain, data = data_de_entrenamiento_escalada)
+prediccion_NB_Run  <- predict(modeloNB_Run , data_de_entrenamiento_escalada, type ="raw")
+#modeloNB_Ryde
+
+data_de_entrenamiento_escalada$prob_NB_Run  <- prediccion_NB_Run[,2]
+curva_roc_NB_Run  <- roc(type_Run  ~ data_de_entrenamiento_escalada$prob_NB_Run , data = data_de_entrenamiento_escalada)
+plot(curva_roc_NB_Run )    
+auc(curva_roc_NB_Run )
+
+data_de_entrenamiento_escalada$prob_NB_Run  = NULL
+```
+
+En el caso de Walk
+
+```{r}
+modeloNB_Walk <- naiveBayes(type_Walk ~ calories + distance + elev_high + elev_low + max_speed + moving_time + average_speed + total_elevation_gain, data = data_de_entrenamiento_escalada)
+prediccion_NB_Walk <- predict(modeloNB_Walk, data_de_entrenamiento_escalada, type ="raw")
+#modeloNB_Ryde
+
+data_de_entrenamiento_escalada$prob_NB_Walk <- prediccion_NB_Walk[,2]
+curva_roc_NB_Walk <- roc(type_Walk ~ data_de_entrenamiento_escalada$prob_NB_Walk, data = data_de_entrenamiento_escalada)
+plot(curva_roc_NB_Walk)    
+auc(curva_roc_NB_Walk)
+
+data_de_entrenamiento_escalada$prob_NB_Walk = NULL
+```
+
+En el caso de Hike
+
+```{r}
+modeloNB_Hike <- naiveBayes(type_Hike ~ calories + distance + elev_high + elev_low + max_speed + moving_time + average_speed + total_elevation_gain, data = data_de_entrenamiento_escalada)
+prediccion_NB_Hike <- predict(modeloNB_Hike, data_de_entrenamiento_escalada, type ="raw")
+#modeloNB_Ryde
+
+data_de_entrenamiento_escalada$prob_NB_Hike <- prediccion_NB_Hike[,2]
+curva_roc_NB_Hike <- roc(type_Hike ~ data_de_entrenamiento_escalada$prob_NB_Hike, data = data_de_entrenamiento_escalada)
+plot(curva_roc_NB_Hike)    
+auc(curva_roc_NB_Hike)
+
+data_de_entrenamiento_escalada$prob_NB_Hike = NULL
+```
+
+En el caso de EBikeRide:
+
+```{r}
+modeloNB_EBikeRide <- naiveBayes(type_EBikeRide ~ calories + distance + elev_high + elev_low + max_speed + moving_time + average_speed + total_elevation_gain, data = data_de_entrenamiento_escalada)
+prediccion_NB_EBikeRide <- predict(modeloNB_EBikeRide, data_de_entrenamiento_escalada, type ="raw")
+#modeloNB_Ryde
+
+data_de_entrenamiento_escalada$prob_NB_EBikeRide <- prediccion_NB_EBikeRide[,2]
+curva_roc_NB_EBikeRide <- roc(type_EBikeRide ~ data_de_entrenamiento_escalada$prob_NB_EBikeRide, data = data_de_entrenamiento_escalada)
+plot(curva_roc_NB_EBikeRide)    
+auc(curva_roc_NB_EBikeRide)
+
+data_de_entrenamiento_escalada$prob_NB_EBikeRide = NULL
+```
+
+## Modelos no parametricos
+### K vecinos mas cercanos
+Busca una división en los datos a partir del concepto de vecindad. Aprende de los datos ingresados y no de una formula matematica.
+
+Para Ryde: 
+
+```{r}
+Clase_a_predecir_entrenamiento_Ride <- factor(data_de_entrenamiento$type_Ride)
+Clase_a_predecir_prueba_Ride <- factor(data_de_prueba$type_Ride)
+
+modeloKnn_Ride <- knn(data_de_entrenamiento_escalada_2[,-c(9:13)], data_de_prueba_escalada_2[,-c(9:13)], cl = data_de_entrenamiento_escalada_2$type_Ride, k = 15, prob = TRUE)  
+
+data_de_prueba_escalada_2$prob_knn_Ride <- modeloKnn_Ride %>% as.character() %>% as.numeric()
+data_de_prueba_escalada_2$KNN_Ride <- Clase_a_predecir_prueba_Ride %>% as.character() %>% as.numeric()
+
+objetivo_secundario_prueba_escalado$prob_knn_Ride <- modeloKnn_Ride %>% as.character() %>% as.numeric()
+objetivo_secundario_prueba_escalado$KNN_Ride  <- Clase_a_predecir_prueba_Ride %>% as.character() %>% as.numeric()
+
+curva_roc_KNN_Ride <- roc(KNN_Ride  ~ data_de_prueba_escalada_2$prob_knn_Ride, data = data_de_prueba_escalada_2)
+plot(curva_roc_KNN_Ride)    
+auc(curva_roc_KNN_Ride)
+
+data_de_prueba_escalada_2$prob_knn_Ride = NULL
+data_de_prueba_escalada_2$KNN_Ride  = NULL
+```
+
+Para Run: 
+
+```{r}
+Clase_a_predecir_entrenamiento_Run <- factor(data_de_entrenamiento$type_Run)
+Clase_a_predecir_prueba_Run <- factor(data_de_prueba$type_Run)
+
+modeloKnn_Run <- knn(data_de_entrenamiento_escalada_2[,-c(9:13)], data_de_prueba_escalada_2[,-c(9:13)], cl = data_de_entrenamiento_escalada_2$type_Run, k = 15, prob = TRUE)    ### AQUI VA LA DUDA QUE LE PREGUNTE AL PROFE
+
+data_de_prueba_escalada_2$prob_knn_Run <- modeloKnn_Run %>% as.character() %>% as.numeric()
+data_de_prueba_escalada_2$KNN_Run <- Clase_a_predecir_prueba_Run %>% as.character() %>% as.numeric()
+
+objetivo_secundario_prueba_escalado$prob_knn_Run <- modeloKnn_Run %>% as.character() %>% as.numeric()
+objetivo_secundario_prueba_escalado$KNN_Run <- Clase_a_predecir_prueba_Run %>% as.character() %>% as.numeric()
+
+curva_roc_KNN_Run <- roc(KNN_Run ~ data_de_prueba_escalada_2$prob_knn_Run, data = data_de_prueba_escalada_2)
+plot(curva_roc_KNN_Run)    
+auc(curva_roc_KNN_Run)
+
+data_de_prueba_escalada_2$prob_knn_Run = NULL
+data_de_prueba_escalada_2$KNN_Run = NULL
+
+```
+
+Para Walk: 
+
+```{r}
+Clase_a_predecir_entrenamiento_Walk <- factor(data_de_entrenamiento$type_Walk)
+Clase_a_predecir_prueba_Walk <- factor(data_de_prueba$type_Walk)
+
+modeloKnn_Walk <- knn(data_de_entrenamiento_escalada_2[,-c(9:13)], data_de_prueba_escalada_2[,-c(9:13)], cl = data_de_entrenamiento_escalada_2$type_Walk, k = 15, prob = TRUE)    ### AQUI VA LA DUDA QUE LE PREGUNTE AL PROFE
+
+data_de_prueba_escalada_2$prob_knn_Walk <- modeloKnn_Walk %>% as.character() %>% as.numeric()
+data_de_prueba_escalada_2$KNN_Walk <- Clase_a_predecir_prueba_Walk %>% as.character() %>% as.numeric()
+
+curva_roc_KNN_Walk <- roc(KNN_Walk ~ data_de_prueba_escalada_2$prob_knn_Walk, data = data_de_prueba_escalada_2)
+plot(curva_roc_KNN_Walk)    
+auc(curva_roc_KNN_Walk)
+
+data_de_prueba_escalada_2$prob_knn_Walk = NULL
+data_de_prueba_escalada_2$KNN_Walk = NULL
+```
+
+Para Hike: 
+
+```{r}
+Clase_a_predecir_entrenamiento_Hike <- factor(data_de_entrenamiento$type_Hike)
+Clase_a_predecir_prueba_Hike <- factor(data_de_prueba$type_Hike)
+
+modeloKnn_Hike <- knn(data_de_entrenamiento_escalada_2[,-c(9:13)], data_de_prueba_escalada_2[,-c(9:13)], cl = data_de_entrenamiento_escalada_2$type_Hike, k = 15, prob = TRUE)    ### AQUI VA LA DUDA QUE LE PREGUNTE AL PROFE
+
+data_de_prueba_escalada_2$prob_knn_Hike <- modeloKnn_Hike %>% as.character() %>% as.numeric()
+data_de_prueba_escalada_2$KNN_Hike <- Clase_a_predecir_prueba_Hike %>% as.character() %>% as.numeric()
+
+curva_roc_KNN_Hike <- roc(KNN_Hike ~ data_de_prueba_escalada_2$prob_knn_Hike, data = data_de_prueba_escalada_2)
+plot(curva_roc_KNN_Hike)    
+auc(curva_roc_KNN_Hike)
+
+data_de_prueba_escalada_2$prob_knn_Hike = NULL
+data_de_prueba_escalada_2$KNN_Hike = NULL
+```
+
+Para EBikeRyde: 
+
+```{r}
+Clase_a_predecir_entrenamiento_EBikeRide <- factor(data_de_entrenamiento$type_EBikeRide)
+Clase_a_predecir_prueba_EBikeRide <- factor(data_de_prueba$type_EBikeRide)
+
+modeloKnn_EBikeRide <- knn(data_de_entrenamiento_escalada_2[,-c(9:13)], data_de_prueba_escalada_2[,-c(9:13)], cl = data_de_entrenamiento_escalada_2$type_EBikeRide, k = 15, prob = TRUE)    ### AQUI VA LA DUDA QUE LE PREGUNTE AL PROFE
+
+data_de_prueba_escalada_2$prob_knn_EBikeRide <- modeloKnn_EBikeRide %>% as.character() %>% as.numeric()
+data_de_prueba_escalada_2$KNN_EBikeRide <- Clase_a_predecir_prueba_EBikeRide %>% as.character() %>% as.numeric()
+
+curva_roc_KNN_EBikeRide <- roc(KNN_EBikeRide ~ data_de_prueba_escalada_2$prob_knn_EBikeRide, data = data_de_prueba_escalada_2)
+plot(curva_roc_KNN_EBikeRide)    
+auc(curva_roc_KNN_EBikeRide)
+
+data_de_prueba_escalada_2$prob_knn_EBikeRide = NULL
+data_de_prueba_escalada_2$KNN_EBikeRide = NULL
 ```
 
 ## Modelo arbol de decisión 
@@ -261,24 +516,42 @@ Ahora si creamos el modelo, donde utilizaremos un arbol de decision con 5 capas 
 
 ```{r}
 
-receta <- 
-  recipe(type_Ride ~ calories + distance + elev_high + elev_low + max_speed + moving_time + average_speed + total_elevation_gain, data = data_de_entrenamiento) 
-receta
+modelo <- decision_tree(tree_depth = 5, min_n = 10) %>% set_engine("rpart") %>% set_mode("classification")
+#modelo
 
-modelo <-
-  decision_tree(tree_depth = 5, min_n = 10) %>% 
-  set_engine("rpart") %>% 
-  set_mode("classification")
+receta_Ride <- recipe(type_Ride ~ calories + distance + elev_high + elev_low + max_speed + moving_time + average_speed + total_elevation_gain, data = data_de_entrenamiento_escalada) 
+#receta_Ride
 
-modelo
+receta_Run <- recipe(type_Run ~ calories + distance + elev_high + elev_low + max_speed + moving_time + average_speed + total_elevation_gain, data = data_de_entrenamiento_escalada) 
+#receta_Run
+
+receta_Walk <- recipe(type_Walk ~ calories + distance + elev_high + elev_low + max_speed + moving_time + average_speed + total_elevation_gain, data = data_de_entrenamiento_escalada) 
+#receta_Walk
+
+receta_Hike <- recipe(type_Hike ~ calories + distance + elev_high + elev_low + max_speed + moving_time + average_speed + total_elevation_gain, data = data_de_entrenamiento_escalada) 
+#receta_Hike
+
+receta_EBikeRide <- recipe(type_EBikeRide ~ calories + distance + elev_high + elev_low + max_speed + moving_time + average_speed + total_elevation_gain, data = data_de_entrenamiento_escalada) 
+#receta_EBikeRide
 ```
-
 
 ```{r}
 data_de_entrenamiento$type_Ride <- factor(data_de_entrenamiento$type_Ride)
 data_de_prueba$type_Ride <- factor(data_de_prueba$type_Ride)
 
-fitea <- function(mod){
+data_de_entrenamiento$type_Run <- factor(data_de_entrenamiento$type_Run)
+data_de_prueba$type_Run <- factor(data_de_prueba$type_Run)
+
+data_de_entrenamiento$type_Walk <- factor(data_de_entrenamiento$type_Walk)
+data_de_prueba$type_Walk <- factor(data_de_prueba$type_Walk)
+
+data_de_entrenamiento$type_Hike <- factor(data_de_entrenamiento$type_Hike)
+data_de_prueba$type_Hike <- factor(data_de_prueba$type_Hike)
+
+data_de_entrenamiento$type_EBikeRide <- factor(data_de_entrenamiento$type_EBikeRide)
+data_de_prueba$type_EBikeRide <- factor(data_de_prueba$type_EBikeRide)
+
+fitea <- function(mod,receta,tipo){
   
   modelo_fit <- 
   workflow() %>% 
@@ -290,37 +563,138 @@ model_pred <-
   predict(modelo_fit, data_de_prueba, type = "prob") %>% 
   bind_cols(data_de_prueba) 
 
-return(model_pred %>% roc_auc(truth = type_Ride, .pred_0))
+return(model_pred %>% roc_auc(truth = tipo, .pred_0))
 }
 
-fitea(modelo)
-
+fitea(modelo, receta_Ride,data_de_prueba$type_Ride)
+fitea(modelo, receta_Walk,data_de_prueba$type_Walk)
+fitea(modelo, receta_Run,data_de_prueba$type_Run)
+fitea(modelo, receta_Hike,data_de_prueba$type_Hike)
+fitea(modelo, receta_EBikeRide,data_de_prueba$type_EBikeRide)
 ```
 
-# Support Vector Machines
+# Resultados de los modelos
 
-Es un modelo que busca la mejor manera de dividir un espacio a traves de algunos puntos en este. Luego, clasifica sobre esa división. Debido a la cantidad de variables y dimensiones, no es posible impleentar este modelo por limitaciones en la capacidad computacional. 
+Tipo: Regresion logica multiple - Naive Bayes - KNN -  Arbol de decisión
 
-## Evaluar modelo supervisados
+Ryde: 0.9296 - 0.9552 - 0.9671- 0.9479
+Run: 0.9138 - 0.9377- 0.9612 - 0.9284
+Walk: 0.873 - 0.9296- 0.7761 - 0.9472
+Hike: 0.8058 - 0.9283- 0.5961 - 0.8081
+EBIKE: 0.6716 - 0.8366- 0.5094 - 0.5
 
-### Matriz de confusión
-Permite determinar si el metodo implementado sobre la data estimó bien los valores, dado que da la posibilidad de determinar falsos o verdaderos positivos o negativos. 
+Por cada tipo de deporte existe un modelo que logra obtener un alto indice de AUC (sobre 90%), es decir, logra mejores estimaciones de los valores y logra diferenciar las actividades realizadas segun sus caracteristicas. 
 
-### ROC
-Esta curva caracteriza la compensación entre golpes positivos y falsas alarmas trazando la tasa de verdaderos positivos en el eje Y contra la tasa de falsos positivos en el eje X para diferente valores. Es otra forma de ver la matriz de confusión. Una buena curva ROC se pega mucho al eje Y. 
+El modelo que mejor predice las variables Ride y Run es el modelo KNN, en el caso de Walk es el modelo de arboles de decisión y por ultimo el modelo Naive Bayes predice de la mejor manera a los tipos Hike y Ebike
 
-### AUC 
-Corresponde al area bajo la curva ROC.Sintetiza el rendimiento del modelo. Mientras mas area, es mejor. 
+Dado que el algoritmo diferencia de manera autonoma el tipo de actividad realiado a traves de las mediciones realizadas por los dispositivos con un indice de acertidividad bastante alto (dado que los AUC son altos) a traves del respectivo modelo mencionado, se concluye que el algoritmo logra el primer obejetivo. 
+
+# Objetivo Secundario
+
+Para el segundo objetivo, se utilizará la data probabilistica recopilada de los modelos mencionados en el parrafo anterior, para luego dicriminar a partir de estos valores. 
+
+Para el caso de las variables calificadas con KNN. La data de prueba fue calificada en esa etapa mientras que la data de entrenamiento se vielve a calificar corriendo nuevamente el modelo en esta etapa y obteniendo sus valores probabilisticos para almacenarlos en la misma data de entrenamiento.  
+
+Data auxiliar toma los valores de probabilidades guardados durante el codigo pero hace que calzen la cantidad de columnas con el de las que salen de cada modelo de entrenamiento. 
+
+Para identificar aquellas actividades que fueron registradas erróneamente por el usuario, planeo almacenar todos los registros que sean ingresados como un registro de un tipo (tengan un 1) pero egun la columna generada por mi modelo, tienen un 0, lo cual indica que fue ingresado de mala manera. 
+```{r}
+modeloKnn_Ride_2 <- knn(data_de_entrenamiento_escalada_2[,-c(9:13)], data_de_entrenamiento_escalada_2[,-c(9:13)],  cl = data_de_entrenamiento_escalada_2$type_Ride, k = 15, prob = TRUE)
+modeloKnn_Run_2 <- knn(data_de_entrenamiento_escalada_2[,-c(9:13)], data_de_entrenamiento_escalada_2[,-c(9:13)], cl = data_de_entrenamiento_escalada_2$type_Run, k = 15, prob = TRUE)    
+
+objetivo_secundario_entrenamiento_escalado$prob_knn_Run <- modeloKnn_Run_2 %>% as.character() %>% as.numeric()
+objetivo_secundario_entrenamiento_escalado$prob_knn_Ride <- modeloKnn_Ride_2 %>% as.character() %>% as.numeric()
+
+data_auxiliar_1 = objetivo_secundario_prueba_escalado[,c(1:14,16),]
+modeloKNN_Corregido=rbind.data.frame(objetivo_secundario_entrenamiento_escalado,data_auxiliar_1)
+
+registro_erroneo_Ride <- modeloKNN_Corregido %>% filter(modeloKNN_Corregido$type_Ride != modeloKNN_Corregido$prob_knn_Ride)
+registro_erroneo_Run <- modeloKNN_Corregido %>% filter(modeloKNN_Corregido$type_Run != modeloKNN_Corregido$prob_knn_Run)
+
+registro_erroneo_Ride = registro_erroneo_Ride[,c(1:9,15)]
+registro_erroneo_Run = registro_erroneo_Run[,c(1:8,10,14)]
+
+head(registro_erroneo_Ride, n=10)
+head(registro_erroneo_Run, n=10)
+```
+
+El re bla bla bla
+```{r}
+nrow(registro_erroneo_Ride)
+```
+
+El re bla bla bla
+```{r}
+nrow(registro_erroneo_Run)
+```
+
+Para el caso de Walk es el modelo de arboles de decisión 
+
+Para discriminar en este modelo, se crean dos columnas de probabilidades. Si dentro de cada fila el valor .pred_0 es mayor al valor .pred_1, el registro no corresponde a una actividad del tipo Walk. Por lo tanto, si la prob_1 es alta, el algoritmo detectó que ese registro corresponde a una actividad de caminata. 
+
 
 ```{r}
-#prob_1 <- predict(modelo_logistico,type=c("response"))
+data_escalada = rbind.data.frame(data_de_entrenamiento_escalada, data_de_prueba_escalada)
+data_escalada$type_Walk = as.factor(data_escalada$type_Walk)
 
-#data$prob_Ride <- prob_1
+receta_Walk_2 <- recipe(type_Walk ~ calories + distance + elev_high + elev_low + max_speed + moving_time + average_speed + total_elevation_gain, data = data_escalada) 
 
-#curva_roc_1 <- roc(type_Ride ~ prob_Ride, data = data)
+fitea_2 <- function(mod,receta,tipo){
+  
+modelo_fit <- 
+  workflow() %>% 
+  add_model(mod) %>% 
+  add_recipe(receta) %>% 
+  fit(data = data_escalada)
 
-#plot(curva_roc_1)    
+registro_erroneo_ArbDec <- predict(modelo_fit, data_escalada, type = "prob") %>% bind_cols(data_escalada) 
 
-#auc(curva_roc_1)
+registro_erroneo_ArbDec <- registro_erroneo_ArbDec %>% filter(registro_erroneo_ArbDec$.pred_1 > 0.5 & registro_erroneo_ArbDec$type_Walk == 0)
+
+head(registro_erroneo_ArbDec, n=20) ## ESTO NO SE ESTA IMPRIMIENDO AAAAA VER EN EL RMARKDOWN
+
+return(nrow(registro_erroneo_ArbDec))
+
+}
+fitea_2(modelo, receta_Walk_2,data_escalada$type_Walk)
+```
+
+Por ultimo, el modelo Naive Bayes predice de la mejor manera a los tipos Hike y Ebike. 
+
+Se vuelve a formar el modelo pero ocupando toda la data limpiada y escalada. Luego, se guardan los resultados de esas probabilidades en el data frame "data_escalada".
+
+
+
+```{r}
+modeloNB_Hike_2 <- naiveBayes(type_Hike ~ calories + distance + elev_high + elev_low + max_speed + moving_time + average_speed + total_elevation_gain, data = data_escalada)
+prediccion_NB_Hike_2 <- predict(modeloNB_Hike_2, data_escalada, type ="raw")
+data_escalada$prob_NB_Hike <- prediccion_NB_Hike_2[,2]
+
+modeloNB_EBikeRide_2 <- naiveBayes(type_EBikeRide ~ calories + distance + elev_high + elev_low + max_speed + moving_time + average_speed + total_elevation_gain, data = data_escalada)
+prediccion_NB_EBikeRide_2 <- predict(modeloNB_EBikeRide_2, data_escalada, type ="raw")
+data_escalada$prob_NB_EBikeRide <- prediccion_NB_EBikeRide_2[,2]
+
+
+registro_erroneo_Hike <- data_escalada %>% filter(data_escalada$type_Hike == 0 & data_escalada$prob_NB_Hike > 0.9)
+registro_erroneo_EBikeRide <- data_escalada %>% filter(data_escalada$type_EBikeRide & data_escalada$prob_NB_EBikeRide >0.9)
+
+registro_erroneo_Hike = registro_erroneo_Hike[,c(1:8,12,14)]
+registro_erroneo_EBikeRide = registro_erroneo_EBikeRide[,c(1:8,13,15)]
+
+head(registro_erroneo_Hike, n=10)
+head(registro_erroneo_EBikeRide, n=10)
 
 ```
+
+El re bla bla bla
+```{r}
+nrow(registro_erroneo_Hike)
+```
+
+El re bla bla bla
+```{r}
+nrow(registro_erroneo_EBikeRide)
+```
+
+
+
