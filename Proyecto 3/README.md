@@ -1,6 +1,11 @@
 Proyecto 3
 ================
 
+El trabajo se divide en la presentacion del informe, importar las
+librerías, cargar los datos, limpiar los datos, diseñar una logica para
+enfrentar la problematica, concluir y por ultimo, realizar el objetivo
+secundario descrito.
+
 # Objetivo
 
 El objetivo principal de este encargo es crear un programa computacional
@@ -23,20 +28,22 @@ library(ggplot2)
 library(class)
 library(tidymodels)
 library(discrim) 
-#library(rstan)
-#library(rstanarm)
+library(naivebayes)
 ```
 
 # Cargar Datos
+
+Se presentan dos formas de cargar los datos dado que el entregable fue
+creado a lo largo del tiempo en dos equipos con diferentes sistemas
+operativos y por ende, con diferentes formas de cargar los datos.
 
 ``` r
 #En Windows
 setwd("C:/Users/Felipe/Documents/GitHub/Entregas_mineria_de_datos/Proyecto 3")
 data<- readRDS("C:/Users/Felipe/Documents/GitHub/Entregas_mineria_de_datos/Proyecto 3/endurance.rds")
-
 #En Mac
 #data = readRDS("~/Documents/GitHub/Entregas_mineria_de_datos/Proyecto 3/endurance.rds")
-
+attach(data)
 summary(data)
 ```
 
@@ -76,32 +83,30 @@ summary(data)
     ##  3rd Qu.:  595.0     
     ##  Max.   :59595.0
 
-``` r
-attach(data)
-```
-
 # Limpieza de datos
+
+La limpieza de datos consiste en las funciones realizadas sobre la data
+para alivianar los datos utilizados. Se divide en la elección de
+variables, busqueda y tratamiento de datos faltantes y por ultimo
+busqueda y tratamiento de datos atipicos.
 
 ## Eleccion de variables
 
-Elimino “start\_date\_local” y “device\_name” dado que la fecha de
+Se eliminó “start\_date\_local” y “device\_name” dado que la fecha de
 incorporación o de creación del perfil no es relevante para diferenciar
 las actividades realizadas en bicicleta o a pie. El valor identificador
 de cada atleta no permite realizar un analisis sobre la actividad
 realizada, dado que solo interesan los parametros obtenidos por la
 actividad, al igual que la columna reference al “id” de la iteración.
-
 “Records” fue eliminado dado que no es relevante saber si la iteración
-grabada resultó en un record frente al resto o no.
-
-A pesar de que la información obtenida por un “heartrate” sería
-relevante para formar una relación entre el deporte realizado y el
-comportamiento del reloj, la base de datos no aporta esa información y
-no es relevante para el objetivo saber si se tiene o no un “heartrate”
-por lo que la variable “has\_heartrate” fue eliminada.
-
-El tiempo transcurrido (elapsed time) tambien fue eliminado dado que es
-mas detallada la información del tiempo de movimiento que del tiempo
+grabada resultó en un record frente al resto o no. A pesar de que la
+información obtenida por un “heartrate” sería relevante para formar una
+relación entre el deporte realizado y el comportamiento de los sensores
+recogido por el reloj, la base de datos no aporta esa información y no
+es relevante para el objetivo saber si se tiene o no un “heartrate” por
+lo que la variable “has\_heartrate” fue eliminada. El tiempo
+transcurrido (elapsed time) tambien fue eliminado dado que es mas
+detallada la información del tiempo de movimiento que del tiempo
 transcurrido desde el inicio del dispositivo a la hora de categorizar
 deportes.
 
@@ -116,6 +121,10 @@ data$elapsed_time = NULL
 ```
 
 ## Busqueda de datos faltantes
+
+Los datos faltantes son registros en donde alguno de sus valores no fue
+ingresado, es decir, valores nulos. Se eliminan porque ensucian y
+modifican el comportamiento de los algoritmos.
 
 ``` r
 data[data == ""] <- NA
@@ -164,16 +173,16 @@ Se valida que no quedan datos faltantes.
 
 ## Busqueda de datos atipicos
 
-Mediante un estudio de regresiones realizado a la data pero omitido para
-la entrega, se observó la precencia de muchos valores atipicos en cada
-una de las variables, por lo cual se procede a analizarlos y
+Mediante un estudio de regresiones realizado a la data (pero omitido
+para la entrega), se observó la precencia de muchos valores atipicos en
+cada una de las variables, por lo cual se procede a analizarlos y
 eliminarlos.
 
 Empezando con las calorias, se observa un grafico totalmente
 desproporcionado debido a la existencia de multiples datos atipicos
-alejados de los valores medios. Debido a esto, procedo a eliminar todos
-los valores superiores a 3000 calorias por su poca probabilidad de ser
-un entrenamiento real, considerando el exceso de ejercicio cardiaco
+alejados de los valores medios. Debido a esto, se procede a eliminar
+todos los valores superiores a 3000 calorias por su poca probabilidad de
+ser un entrenamiento real, considerando el exceso de ejercicio cardiaco
 realizado y la cantidad de tiempo que demanda quemar esa cantidad de
 calorias durante un entrenamiento normal. Tambien se eliminaran los
 valores que sean equivalentes a 0 porque demuestran un error en la
@@ -196,6 +205,11 @@ ggplot(data_actualizada, aes(x= type, y=calories))+ geom_boxplot(outlier.colour=
 
 ![](README_files/figure-gfm/unnamed-chunk-7-2.png)<!-- -->
 
+Se observa que con el limite de calorias indicado, los datos por cada
+tipo de deporte se encuentran mas compactados.
+
+En el caso de la distancia, se limitan sus valores a 40000.
+
 ``` r
 ggplot(data_actualizada, aes(x= type, y=distance))+ geom_boxplot(outlier.colour="red", outlier.shape=8,outlier.size=4)
 ```
@@ -214,7 +228,6 @@ En el caso de la velocidad, no tiene sentido que la maxima velocidad sea
 
 ``` r
 data_actualizada = data_actualizada[data_actualizada$max_speed > 1 ,]
-#ggplot(data_actualizada, aes(x= type, y=max_speed))+ geom_boxplot(outlier.colour="red", outlier.shape=8,outlier.size=4)
 ```
 
 En el caso de las elevaciones, se detectó la existencia de valores
@@ -224,6 +237,9 @@ negativos, los cuales no tienen sentido y se eliminaron.
 data_actualizada = data_actualizada[data_actualizada$elev_low > 0,]
 data_actualizada = data_actualizada[data_actualizada$elev_high > 0,]
 ```
+
+Para el tiempo en movimiento, debido a la prsencia de valores atipicos
+en uno de los tipos de actividades se limitó a 15000.
 
 ``` r
 ggplot(data_actualizada, aes(x= type, y=moving_time))+ geom_boxplot(outlier.colour="red", outlier.shape=8,outlier.size=4)
@@ -239,7 +255,8 @@ ggplot(data_actualizada, aes(x= type, y=moving_time))+ geom_boxplot(outlier.colo
 ![](README_files/figure-gfm/unnamed-chunk-11-2.png)<!-- -->
 
 Con respecto a la velocidad promedio, se eliminaran los valores
-inferiores a 1 dado que demuestran una velocidad de movimiento atipico.
+inferiores a 1 dado que demuestran una velocidad de movimiento
+inexplicable para un registro que pretende registrar una actividad.
 
 ``` r
 data_actualizada = data_actualizada[data_actualizada$average_speed > 1 ,]
@@ -269,42 +286,39 @@ La logica implica la utilizaciòn de modelos de machine lerning del tipo
 supervidado (dado que intentaré predecir unos valores con los valores
 pasados de ese algo), en donde se utilizaran mecanismos de clasificaciòn
 dado que los valores a predecir son variables discretas, es decir, que
-se mueven en un intervalo de valores conocidos.
+se mueven en un intervalo de valores conocidos. En este caso esos
+valores son el 1 y el 0, a los cuales se llegará a continuación.
 
 El objetivo del proyecto es diferenciar las actividades realizadas en
 bicicleta o a pie, por lo cual se espera predecir las actividades
 realizadas en bicicleta (Ride y EBikeRide) y a pie (Run,Walk y Hike),
-sin descartar ninguna.
+sin omitir ninguna.
 
 ## Evaluar modelo supervisados
 
-### Matriz de confusión
-
-Permite determinar si el metodo implementado sobre la data estimó bien
-los valores, dado que da la posibilidad de determinar falsos o
-verdaderos positivos o negativos.
-
-### ROC
-
-Esta curva caracteriza la compensación entre golpes positivos y falsas
+Para evaluar la otpimalidad de los modelos supervisados, se utilizará la
+matriz de confusión, la cual permite determinar si el metodo
+implementado sobre la data estimó bien los valores, dado que da la
+probabilidad de falsos y verdaderos positivos o negativos a traves de
+sus algoritmos internos. Para implementarla, se utilizará la curva ROC,
+la cual caracteriza la compensación entre golpes positivos y falsas
 alarmas trazando la tasa de verdaderos positivos en el eje Y contra la
 tasa de falsos positivos en el eje X para diferente valores. Es otra
-forma de ver la matriz de confusión. Una buena curva ROC se pega mucho
-al eje Y.
-
-### AUC
-
-Corresponde al area bajo la curva ROC.Sintetiza el rendimiento del
-modelo. Mientras mas area, es mejor.
+forma de ver la matriz de confusión. Una buena curva ROC se acerca mucho
+al eje Y. Por ultimo, se utilizará la metrica AUC, la cual corresponde
+al area bajo la curva ROC y por ende sintetiza el rendimiento del
+modelo. Mientras mas area, es mejor el modelo porque predice de mejor
+manera los valores a partir de la data.
 
 # Transformación de Variables
 
 La columna del tipo de deporte efectuado se encuentra indicando el tipo
 de deporte que supuestamente realizó esa iteración. Sin embargo, dado
 que es de tipo caracter y dado que dentro de esa misma columna hay 4
-posibles tipos de deporte, pretendo separar esa información en variables
-booleanas (representado en valores numericos enteros binarios) en donde
-cada variable haga referencia a un tipo de deporte en particular.
+posibles tipos de deporte, se pretende separar esa información en
+variables booleanas (representado en valores numericos enteros binarios)
+en donde cada variable haga referencia a un tipo de deporte en
+particular.
 
 ``` r
 unique(data_actualizada$type)
@@ -324,16 +338,9 @@ data_actualizada$type = NULL
 
 ## Muestreo aleatorio simple sin remplazo
 
-DEBERIA SER ESTRATIFICADO, ESE ES EL MEJOR ya que divide los datos en
-varias particiones y se saca muestras aleatorias de cada partición.
-Sacar solo con el muestreo aleatorio simple arriesga a polarizar la
-muestra en caso de que sean muchos 1 o 0 en la base de datos.
-Estratificado sacaria por ejemplo el 10% de los True y el 10% de los
-False
-
-Usualmente se toma un 80% de entrenamiento y 20% para la prueba, en el
-cual se ve la acurracy del modelo pero las metricas se toman con el de
-entrenamiento.
+Se agrupa el 80% de los datos almacenado con la finalidad de ser una
+data de entrenamiento mientras que el 20% restante de la data será para
+probar el rendimiento del modelo seleccionado.
 
 ``` r
 set.seed(42)
@@ -343,11 +350,18 @@ data_de_entrenamiento <- data_actualizada[muestra_aleatoria,]
 data_de_prueba <- data_actualizada[-muestra_aleatoria,]
 ```
 
-## Datos a Factores
+## Escalar datos y modificación de data a predecir
 
-## Escalar Datos
+Las magnitudes de los datos son muy diferentes entre cada variable, lo
+cual puede inducir efectos negativos en la creación de los modelos, por
+lo cual se decide escalar la data numerica. Por otro lado, algunas de
+estas variables se encuentran como valores de factores y deben ser
+tratados como valores numericos en algunos algoritmos.
 
-Datos a Factores y Escalar Datos
+Se crea la data de entrenamiento 2 con la finalidad de utilizarla en un
+algoritmo de clasificación en especifico, el cual será utilizado mas
+adelante. Por otro lado se creará la data de objetivos secundarios para
+la realización del objetivo secundario del desafío.
 
 ``` r
 data_de_entrenamiento_2=data_de_entrenamiento
@@ -399,17 +413,30 @@ data_de_entrenamiento_escalada_2 = data_de_entrenamiento_escalada_2[,1:13]
 
 ## Metodo de clasificación sobre variables creadas
 
+Se utilizarán cuatro algoritmos de clasificación sobre la data con la
+finalidad de encontrar el mejor algoritmo para cada una de las cinco
+variables a predecir.
+
 ### Regresión logistica Multiple
 
 Es un modelo simple y liviano computacionalmente por lo cual permite
-darle una caracter de introducción al estudio de los valores. Por
-problemas de almacenamiento, no se permite ingresar mas variables al
-modelo dado que colapsa computacionalmente.
+darle una caracter de introducción al estudio de las predicciones. Por
+problemas de capacidad computacional, no se permite ingresar todas las
+variables al modelo dado se genera un colapso de procesamiento, Para
+cada uno de los tipos de actividad se calcula el modelo a traves de la
+función GLM utilizando las variables de “calorias” y “distancia” de la
+data de entrenamiento, las cuales fueron consideradas como las variables
+mas relevantes para predecir. La función “summary” permite concluir que
+las variables ingresadas son pertinentes para la variable a predecir a
+traves de un indicador de asteriscos a un costado de las variables. El
+resultado del modelo es almacenado en la variable
+“prob\_multi\_modelo\_logistico\_(tipo de actividad)” en el dataframe de
+data\_de\_prueba para luego medir su efectividad con la data de prueba
+en la función “auc”. Debido a que la data va a ser utilizada en otros
+algoritmos, se limpia la variable de probabilidad generada luego de
+obtener los parametros del modelo y sus resultados.
 
-Aqui no entra la data escalada porque tiene que estar con 0 o 1 en el
-modelo.
-
-Para el caso del tipo Ride
+#### Para el caso del tipo Ride:
 
 ``` r
 modelo_logistico_1 <- glm(type_Ride ~ calories + distance, data_de_entrenamiento, family = "binomial")
@@ -442,8 +469,6 @@ summary(modelo_logistico_1)
     ## Number of Fisher Scoring iterations: 7
 
 ``` r
-#modelo_logistico <- glm(type_Ride ~ calories + distance + elev_high + elev_low + max_speed + moving_time + average_speed + total_elevation_gain, data_de_entrenamiento, family = "binomial")
-
 data_de_prueba$prob_multi_modelo_logistico_Ryde <- predict(modelo_logistico_1, data_de_prueba, type=c("response"))
 auc(roc(type_Ride ~ prob_multi_modelo_logistico_Ryde, data = data_de_prueba))
 ```
@@ -455,10 +480,10 @@ auc(roc(type_Ride ~ prob_multi_modelo_logistico_Ryde, data = data_de_prueba))
     ## Area under the curve: 0.9296
 
 ``` r
-data_de_prueba$prob_multi_modelo_logistico_Ryde = NULL #Para mantener orden en data_de_entrenamiento le borro esto siempre 
+data_de_prueba$prob_multi_modelo_logistico_Ryde = NULL 
 ```
 
-Para el caso del tipo Run
+#### Para el caso del tipo Run:
 
 ``` r
 modelo_logistico_2 <- glm(type_Run ~ calories + distance, data_de_entrenamiento, family = "binomial")
@@ -507,7 +532,7 @@ auc(roc(type_Run ~ prob_multi_modelo_logistico_Run, data = data_de_prueba))
 data_de_prueba$prob_multi_modelo_logistico_Run = NULL #Para mantener orden en data_de_entrenamiento le borro esto siempre 
 ```
 
-Para el caso del tipo Walk
+#### Para el caso del tipo Walk:
 
 ``` r
 modelo_logistico_3 <- glm(type_Walk ~ calories + distance, data_de_entrenamiento, family = "binomial")
@@ -556,7 +581,7 @@ auc(roc(type_Walk ~ prob_multi_modelo_logistico_Walk, data = data_de_prueba))
 data_de_prueba$prob_multi_modelo_logistico_Walk = NULL #Para mantener orden en data_de_entrenamiento le borro esto siempre 
 ```
 
-Para el caso del tipo Hike
+#### Para el caso del tipo Hike:
 
 ``` r
 modelo_logistico_4 <- glm(type_Hike ~ calories + distance, data_de_entrenamiento, family = "binomial")
@@ -589,8 +614,6 @@ summary(modelo_logistico_4)
     ## Number of Fisher Scoring iterations: 9
 
 ``` r
-#modelo_logistico <- glm(type_Ride ~ calories + distance + elev_high + elev_low + max_speed + moving_time + average_speed + total_elevation_gain, data_de_entrenamiento, family = "binomial")
-
 data_de_prueba$prob_multi_modelo_logistico_Hike <- predict(modelo_logistico_4, data_de_prueba, type=c("response"))
 auc(roc(type_Hike ~ prob_multi_modelo_logistico_Hike, data = data_de_prueba))
 ```
@@ -605,7 +628,7 @@ auc(roc(type_Hike ~ prob_multi_modelo_logistico_Hike, data = data_de_prueba))
 data_de_prueba$prob_multi_modelo_logistico_Hike = NULL #Para mantener orden en data_de_entrenamiento le borro esto siempre 
 ```
 
-Para el caso del tipo EbikeRide
+#### Para el caso del tipo EbikeRide:
 
 ``` r
 modelo_logistico_5 <- glm(type_EBikeRide ~ calories + distance, data_de_entrenamiento, family = "binomial")
@@ -659,20 +682,25 @@ data_de_prueba$prob_multi_modelo_logistico_EBikeRide = NULL #Para mantener orden
 ### Modelo de Naive Bayes
 
 Dada una distribución condicional de probabilidad, la salida del modelo
-indica para un dato, si pertenee o no a una clase especificada. Se
+indica para un dato, si pertenece o no a una clase especificada. Se
 utiliza este modelo dado que la base de datos aun cuenta con modelos
 atipicos y este modelo es robusto frente a valores atipicos y datos
-irrelevantes.
+irrelevantes. La función para el algoritmo es “NaiveBayes” y a
+diferencia del algoritmo anterior, la capacidad computacional si permite
+ingresar todas las variables de la data de entrenamiento. Luego, se
+utiliza la función “predict” con la data de prueba escalada y el
+resultado de esta predicción se agrega en una nueva columna a la data de
+prueba escalada. En la función “roc” se contrasta este resultado de
+probabilidades con el valor real almacenado en la data de prueba.
 
-En el caso de Ryde
+#### En el caso de Ryde
 
 ``` r
 modeloNB_Ryde <- naiveBayes(type_Ride ~ calories + distance + elev_high + elev_low + max_speed + moving_time + average_speed + total_elevation_gain, data = data_de_entrenamiento_escalada)
-prediccion_NB_Ryde <- predict(modeloNB_Ryde, data_de_entrenamiento_escalada, type ="raw")
-#modeloNB_Ryde
+prediccion_NB_Ryde <- predict(modeloNB_Ryde, data_de_prueba_escalada, type ="raw")
 
-data_de_entrenamiento_escalada$prob_NB_Ryde <- prediccion_NB_Ryde[,2]
-curva_roc_NB_Ryde <- roc(type_Ride ~ data_de_entrenamiento_escalada$prob_NB_Ryde, data = data_de_entrenamiento)
+data_de_prueba_escalada$prob_NB_Ryde <- prediccion_NB_Ryde[,2]
+curva_roc_NB_Ryde <- roc(type_Ride ~ data_de_prueba_escalada$prob_NB_Ryde, data = data_de_prueba_escalada)
 ```
 
     ## Setting levels: control = 0, case = 1
@@ -689,21 +717,21 @@ plot(curva_roc_NB_Ryde)
 auc(curva_roc_NB_Ryde)
 ```
 
-    ## Area under the curve: 0.9552
+    ## Area under the curve: 0.9502
 
 ``` r
-data_de_entrenamiento_escalada$prob_NB_Ryde = NULL
+data_de_prueba_escalada$prob_NB_Ryde = NULL
 ```
 
-En el caso de Run
+#### En el caso de Run
 
 ``` r
 modeloNB_Run <- naiveBayes(type_Run ~ calories + distance + elev_high + elev_low + max_speed + moving_time + average_speed + total_elevation_gain, data = data_de_entrenamiento_escalada)
-prediccion_NB_Run  <- predict(modeloNB_Run , data_de_entrenamiento_escalada, type ="raw")
+prediccion_NB_Run  <- predict(modeloNB_Run ,data_de_prueba_escalada, type ="raw")
 #modeloNB_Ryde
 
-data_de_entrenamiento_escalada$prob_NB_Run  <- prediccion_NB_Run[,2]
-curva_roc_NB_Run  <- roc(type_Run  ~ data_de_entrenamiento_escalada$prob_NB_Run , data = data_de_entrenamiento_escalada)
+data_de_prueba_escalada$prob_NB_Run  <- prediccion_NB_Run[,2]
+curva_roc_NB_Run  <- roc(type_Run  ~ data_de_prueba_escalada$prob_NB_Run , data = data_de_prueba_escalada)
 ```
 
     ## Setting levels: control = 0, case = 1
@@ -720,21 +748,21 @@ plot(curva_roc_NB_Run )
 auc(curva_roc_NB_Run )
 ```
 
-    ## Area under the curve: 0.9377
+    ## Area under the curve: 0.9332
 
 ``` r
-data_de_entrenamiento_escalada$prob_NB_Run  = NULL
+data_de_prueba_escalada$prob_NB_Run  = NULL
 ```
 
-En el caso de Walk
+#### En el caso de Walk
 
 ``` r
 modeloNB_Walk <- naiveBayes(type_Walk ~ calories + distance + elev_high + elev_low + max_speed + moving_time + average_speed + total_elevation_gain, data = data_de_entrenamiento_escalada)
-prediccion_NB_Walk <- predict(modeloNB_Walk, data_de_entrenamiento_escalada, type ="raw")
+prediccion_NB_Walk <- predict(modeloNB_Walk, data_de_prueba_escalada, type ="raw")
 #modeloNB_Ryde
 
-data_de_entrenamiento_escalada$prob_NB_Walk <- prediccion_NB_Walk[,2]
-curva_roc_NB_Walk <- roc(type_Walk ~ data_de_entrenamiento_escalada$prob_NB_Walk, data = data_de_entrenamiento_escalada)
+data_de_prueba_escalada$prob_NB_Walk <- prediccion_NB_Walk[,2]
+curva_roc_NB_Walk <- roc(type_Walk ~ data_de_prueba_escalada$prob_NB_Walk, data = data_de_prueba_escalada)
 ```
 
     ## Setting levels: control = 0, case = 1
@@ -751,21 +779,21 @@ plot(curva_roc_NB_Walk)
 auc(curva_roc_NB_Walk)
 ```
 
-    ## Area under the curve: 0.9296
+    ## Area under the curve: 0.9186
 
 ``` r
-data_de_entrenamiento_escalada$prob_NB_Walk = NULL
+data_de_prueba_escalada$prob_NB_Walk = NULL
 ```
 
-En el caso de Hike
+#### En el caso de Hike
 
 ``` r
 modeloNB_Hike <- naiveBayes(type_Hike ~ calories + distance + elev_high + elev_low + max_speed + moving_time + average_speed + total_elevation_gain, data = data_de_entrenamiento_escalada)
-prediccion_NB_Hike <- predict(modeloNB_Hike, data_de_entrenamiento_escalada, type ="raw")
+prediccion_NB_Hike <- predict(modeloNB_Hike, data_de_prueba_escalada, type ="raw")
 #modeloNB_Ryde
 
-data_de_entrenamiento_escalada$prob_NB_Hike <- prediccion_NB_Hike[,2]
-curva_roc_NB_Hike <- roc(type_Hike ~ data_de_entrenamiento_escalada$prob_NB_Hike, data = data_de_entrenamiento_escalada)
+data_de_prueba_escalada$prob_NB_Hike <- prediccion_NB_Hike[,2]
+curva_roc_NB_Hike <- roc(type_Hike ~ data_de_prueba_escalada$prob_NB_Hike, data = data_de_prueba_escalada)
 ```
 
     ## Setting levels: control = 0, case = 1
@@ -782,21 +810,21 @@ plot(curva_roc_NB_Hike)
 auc(curva_roc_NB_Hike)
 ```
 
-    ## Area under the curve: 0.9283
+    ## Area under the curve: 0.9195
 
 ``` r
-data_de_entrenamiento_escalada$prob_NB_Hike = NULL
+data_de_prueba_escalada$prob_NB_Hike = NULL
 ```
 
-En el caso de EBikeRide:
+#### En el caso de EBikeRide:
 
 ``` r
 modeloNB_EBikeRide <- naiveBayes(type_EBikeRide ~ calories + distance + elev_high + elev_low + max_speed + moving_time + average_speed + total_elevation_gain, data = data_de_entrenamiento_escalada)
-prediccion_NB_EBikeRide <- predict(modeloNB_EBikeRide, data_de_entrenamiento_escalada, type ="raw")
+prediccion_NB_EBikeRide <- predict(modeloNB_EBikeRide, data_de_prueba_escalada, type ="raw")
 #modeloNB_Ryde
 
-data_de_entrenamiento_escalada$prob_NB_EBikeRide <- prediccion_NB_EBikeRide[,2]
-curva_roc_NB_EBikeRide <- roc(type_EBikeRide ~ data_de_entrenamiento_escalada$prob_NB_EBikeRide, data = data_de_entrenamiento_escalada)
+data_de_prueba_escalada$prob_NB_EBikeRide <- prediccion_NB_EBikeRide[,2]
+curva_roc_NB_EBikeRide <- roc(type_EBikeRide ~ data_de_prueba_escalada$prob_NB_EBikeRide, data = data_de_prueba_escalada)
 ```
 
     ## Setting levels: control = 0, case = 1
@@ -813,10 +841,10 @@ plot(curva_roc_NB_EBikeRide)
 auc(curva_roc_NB_EBikeRide)
 ```
 
-    ## Area under the curve: 0.8366
+    ## Area under the curve: 0.8417
 
 ``` r
-data_de_entrenamiento_escalada$prob_NB_EBikeRide = NULL
+data_de_prueba_escalada$prob_NB_EBikeRide = NULL
 ```
 
 ## Modelos no parametricos
@@ -824,9 +852,21 @@ data_de_entrenamiento_escalada$prob_NB_EBikeRide = NULL
 ### K vecinos mas cercanos
 
 Busca una división en los datos a partir del concepto de vecindad.
-Aprende de los datos ingresados y no de una formula matematica.
+Aprende de los datos ingresados y no de una formula matematica. En este
+caso, los valores a predecir se almacenanen variables como factores dado
+que es un requisito del modelo. Luego, en la función “knn” de la
+librería “class” se agrega la data de entrenamiento escalada, la data de
+prueba escalada y el factor de la variable a predecir en el data frame
+de entrenamiento escalado para luego almacenar en “data de prueba
+escalada” las probabilidades obtenidas por el modelo y el resultado de
+clasificación que entrega el modelo (variable “KNN\_(tipo de
+actividad)”). En la función “roc” se contrasta este valor de
+clasificación obtenido por el modelo con la probabilidad arrojada por el
+modelo. Por ultimo se eliminan las nuevas variables creadas dado que los
+data frame que modificaron va a ser utilizado el el resto de actividades
+realizadas.
 
-Para Ryde:
+#### Para Ryde:
 
 ``` r
 Clase_a_predecir_entrenamiento_Ride <- factor(data_de_entrenamiento$type_Ride)
@@ -864,7 +904,7 @@ data_de_prueba_escalada_2$prob_knn_Ride = NULL
 data_de_prueba_escalada_2$KNN_Ride  = NULL
 ```
 
-Para Run:
+#### Para Run:
 
 ``` r
 Clase_a_predecir_entrenamiento_Run <- factor(data_de_entrenamiento$type_Run)
@@ -902,7 +942,7 @@ data_de_prueba_escalada_2$prob_knn_Run = NULL
 data_de_prueba_escalada_2$KNN_Run = NULL
 ```
 
-Para Walk:
+#### Para Walk:
 
 ``` r
 Clase_a_predecir_entrenamiento_Walk <- factor(data_de_entrenamiento$type_Walk)
@@ -937,7 +977,7 @@ data_de_prueba_escalada_2$prob_knn_Walk = NULL
 data_de_prueba_escalada_2$KNN_Walk = NULL
 ```
 
-Para Hike:
+#### Para Hike:
 
 ``` r
 Clase_a_predecir_entrenamiento_Hike <- factor(data_de_entrenamiento$type_Hike)
@@ -972,7 +1012,7 @@ data_de_prueba_escalada_2$prob_knn_Hike = NULL
 data_de_prueba_escalada_2$KNN_Hike = NULL
 ```
 
-Para EBikeRyde:
+#### Para EBikeRyde:
 
 ``` r
 Clase_a_predecir_entrenamiento_EBikeRide <- factor(data_de_entrenamiento$type_EBikeRide)
@@ -1009,52 +1049,52 @@ data_de_prueba_escalada_2$KNN_EBikeRide = NULL
 
 ## Modelo arbol de decisión
 
-Luego, creamos la “receta” del modelo, que consiste en la relacion de
-“caja negra” entre las variables de entrada y las variables de salida.
-En este caso, la receta será modelar Exited en funcion de todas las
-variables presentes en el conjunto de datos.
+En primer lugar se debe crear la “receta” del modelo, que consiste en la
+relacion de “caja negra” entre las variables de entrada y las variables
+de salida. En este caso, la receta será modelar el tipo de actividad en
+funcion del resto de las variables presentes en el conjunto de datos.
 
-Ahora si creamos el modelo, donde utilizaremos un arbol de decision con
-5 capas de decision, y un minimo numero de entidades por hoja (poda) de
+Tambien se crea el modelo, donde se utilizará un arbol de decision con 5
+capas de decision, y un minimo numero de entidades por hoja (poda) de
 10. La libreria que se utiliza para calcular este modelo sera la de
-rpart, que viene precargada en los paquetes que estamos utilizando. Con
-este paso solo definimos el modelo, aun lo calculamos.
+rpart. Con este paso solo definimos el modelo, aun no se calcula
+nada.Todo esto se realiza desde la data de entrenamiento escalada.
 
 ``` r
 modelo <- decision_tree(tree_depth = 5, min_n = 10) %>% set_engine("rpart") %>% set_mode("classification")
-#modelo
 
 receta_Ride <- recipe(type_Ride ~ calories + distance + elev_high + elev_low + max_speed + moving_time + average_speed + total_elevation_gain, data = data_de_entrenamiento_escalada) 
-#receta_Ride
 
 receta_Run <- recipe(type_Run ~ calories + distance + elev_high + elev_low + max_speed + moving_time + average_speed + total_elevation_gain, data = data_de_entrenamiento_escalada) 
-#receta_Run
 
 receta_Walk <- recipe(type_Walk ~ calories + distance + elev_high + elev_low + max_speed + moving_time + average_speed + total_elevation_gain, data = data_de_entrenamiento_escalada) 
-#receta_Walk
 
 receta_Hike <- recipe(type_Hike ~ calories + distance + elev_high + elev_low + max_speed + moving_time + average_speed + total_elevation_gain, data = data_de_entrenamiento_escalada) 
-#receta_Hike
 
 receta_EBikeRide <- recipe(type_EBikeRide ~ calories + distance + elev_high + elev_low + max_speed + moving_time + average_speed + total_elevation_gain, data = data_de_entrenamiento_escalada) 
-#receta_EBikeRide
 ```
 
+Luego, las variables a estimar se transforman a factor por requisito del
+modelo y se crea la función “fitea” para resivir un modelo, una receta y
+una variable a estimar para fabricar el modelo con la data de
+entrenamiento escalada y luego predecir el modelo con la data de prueba
+escalada. Por ultimo, retorna el valor del auc y el modelo.
+
 ``` r
-data_de_entrenamiento$type_Ride <- factor(data_de_entrenamiento$type_Ride)
-data_de_prueba$type_Ride <- factor(data_de_prueba$type_Ride)
+data_de_entrenamiento_escalada$type_Ride <- factor(data_de_entrenamiento_escalada$type_Ride)
+data_de_prueba_escalada$type_Ride <- factor(data_de_prueba_escalada$type_Ride)
 
-data_de_entrenamiento$type_Run <- factor(data_de_entrenamiento$type_Run)
-data_de_prueba$type_Run <- factor(data_de_prueba$type_Run)
+data_de_entrenamiento_escalada$type_Run <- factor(data_de_entrenamiento_escalada$type_Run)
+data_de_prueba_escalada$type_Run <- factor(data_de_prueba_escalada$type_Run)
 
-data_de_entrenamiento$type_Walk <- factor(data_de_entrenamiento$type_Walk)
-data_de_prueba$type_Walk <- factor(data_de_prueba$type_Walk)
+data_de_entrenamiento_escalada$type_Walk <- factor(data_de_entrenamiento_escalada$type_Walk)
+data_de_prueba_escalada$type_Walk <- factor(data_de_prueba_escalada$type_Walk)
 
-data_de_entrenamiento$type_Hike <- factor(data_de_entrenamiento$type_Hike)
-data_de_prueba$type_Hike <- factor(data_de_prueba$type_Hike)
+data_de_entrenamiento_escalada$type_Hike <- factor(data_de_entrenamiento_escalada$type_Hike)
+data_de_prueba_escalada$type_Hike <- factor(data_de_prueba_escalada$type_Hike)
 
-data_de_entrenamiento$type_EBikeRide <- factor(data_de_entrenamiento$type_EBikeRide)
-data_de_prueba$type_EBikeRide <- factor(data_de_prueba$type_EBikeRide)
+data_de_entrenamiento_escalada$type_EBikeRide <- factor(data_de_entrenamiento_escalada$type_EBikeRide)
+data_de_prueba_escalada$type_EBikeRide <- factor(data_de_prueba_escalada$type_EBikeRide)
 
 fitea <- function(mod,receta,tipo){
   
@@ -1062,16 +1102,16 @@ fitea <- function(mod,receta,tipo){
   workflow() %>% 
   add_model(mod) %>% 
   add_recipe(receta) %>% 
-  fit(data = data_de_entrenamiento)
+  fit(data = data_de_entrenamiento_escalada)
 
 model_pred <- 
-  predict(modelo_fit, data_de_prueba, type = "prob") %>% 
-  bind_cols(data_de_prueba) 
+  predict(modelo_fit, data_de_prueba_escalada, type = "prob") %>% 
+  bind_cols(data_de_prueba_escalada) 
 
 return(model_pred %>% roc_auc(truth = tipo, .pred_0))
 }
 
-fitea(modelo, receta_Ride,data_de_prueba$type_Ride)
+fitea(modelo, receta_Ride, data_de_prueba_escalada$type_Ride)
 ```
 
     ## # A tibble: 1 x 3
@@ -1080,34 +1120,34 @@ fitea(modelo, receta_Ride,data_de_prueba$type_Ride)
     ## 1 roc_auc binary         0.948
 
 ``` r
-fitea(modelo, receta_Walk,data_de_prueba$type_Walk)
+fitea(modelo, receta_Walk, data_de_prueba_escalada$type_Walk)
 ```
 
     ## # A tibble: 1 x 3
     ##   .metric .estimator .estimate
     ##   <chr>   <chr>          <dbl>
-    ## 1 roc_auc binary         0.928
+    ## 1 roc_auc binary         0.889
 
 ``` r
-fitea(modelo, receta_Run,data_de_prueba$type_Run)
+fitea(modelo, receta_Run, data_de_prueba_escalada$type_Run)
 ```
 
     ## # A tibble: 1 x 3
     ##   .metric .estimator .estimate
     ##   <chr>   <chr>          <dbl>
-    ## 1 roc_auc binary         0.947
+    ## 1 roc_auc binary         0.943
 
 ``` r
-fitea(modelo, receta_Hike,data_de_prueba$type_Hike)
+fitea(modelo, receta_Hike, data_de_prueba_escalada$type_Hike)
 ```
 
     ## # A tibble: 1 x 3
     ##   .metric .estimator .estimate
     ##   <chr>   <chr>          <dbl>
-    ## 1 roc_auc binary         0.808
+    ## 1 roc_auc binary         0.604
 
 ``` r
-fitea(modelo, receta_EBikeRide,data_de_prueba$type_EBikeRide)
+fitea(modelo, receta_EBikeRide, data_de_prueba_escalada$type_EBikeRide)
 ```
 
     ## # A tibble: 1 x 3
@@ -1117,90 +1157,77 @@ fitea(modelo, receta_EBikeRide,data_de_prueba$type_EBikeRide)
 
 # Resultados de los modelos
 
-Tipo: Regresion logica multiple - Naive Bayes - KNN - Arbol de decisión
+A forma de sintesis, el resultado del valor AUC de los modelos fue:
 
-Ryde: 0.9296 - 0.9552 - 0.9671- 0.9479 Run: 0.9138 - 0.9377- 0.9612 -
-0.9284 Walk: 0.873 - 0.9296- 0.7761 - 0.9472 Hike: 0.8058 - 0.9283-
-0.5961 - 0.8081 EBIKE: 0.6716 - 0.8366- 0.5094 - 0.5
+-   Tipo: Regresion logica multiple - Naive Bayes - KNN - Arbol de
+    decisión
+-   Ride: 0.9296 - 0.9713 - 0.9671 - 0.9477
+-   Run: 0.9138 - 0.9331 - 0.9612 - 0.8891
+-   Walk: 0.873 - 0.9186 - 0.7761 - 0.9430
+-   Hike: 0.8058 - 0.9195 - 0.5961 - 0.6043
+-   EBIKE:0.6716 - 0.8417 - 0.5094 - 0.5
 
 Por cada tipo de deporte existe un modelo que logra obtener un alto
-indice de AUC (sobre 90%), es decir, logra mejores estimaciones de los
+indice de AUC (sobre 84%), es decir, logra mejores estimaciones de los
 valores y logra diferenciar las actividades realizadas segun sus
-caracteristicas.
-
-El modelo que mejor predice las variables Ride y Run es el modelo KNN,
-en el caso de Walk es el modelo de arboles de decisión y por ultimo el
-modelo Naive Bayes predice de la mejor manera a los tipos Hike y Ebike
-
-Dado que el algoritmo diferencia de manera autonoma el tipo de actividad
-realiado a traves de las mediciones realizadas por los dispositivos con
-un indice de acertidividad bastante alto (dado que los AUC son altos) a
-traves del respectivo modelo mencionado, se concluye que el algoritmo
-logra el primer obejetivo.
+caracteristicas. El modelo que mejor predice la variable Run es el
+modelo KNN, en el caso de la variable Walk es el modelo de arboles de
+decisión y por ultimo el modelo Naive Bayes predice de la mejor manera a
+las variables Hike, Ebike y Ride Dado que el algoritmo diferencia de
+manera autonoma el tipo de actividad realiado a traves de las mediciones
+realizadas por los dispositivos con un indice de acertidividad bastante
+alto (dado que los AUC son altos) a traves del respectivo modelo
+mencionado, se concluye que el algoritmo logra el primer obejetivo.
 
 # Objetivo Secundario
 
 Para el segundo objetivo, se utilizará la data probabilistica recopilada
-de los modelos mencionados en el parrafo anterior, para luego dicriminar
-a partir de estos valores.
+de los modelos mencionados en el parrafo anterior para cada una de las
+variables o se volverá a realizar el modelo con un dataframe completo
+para luego dicriminar a partir de estos valores obtenidos.
+
+## Variable Run en modelo KNN
 
 Para el caso de las variables calificadas con KNN. La data de prueba fue
-calificada en esa etapa mientras que la data de entrenamiento se vielve
-a calificar corriendo nuevamente el modelo en esta etapa y obteniendo
-sus valores probabilisticos para almacenarlos en la misma data de
-entrenamiento.
-
-Data auxiliar toma los valores de probabilidades guardados durante el
-codigo pero hace que calzen la cantidad de columnas con el de las que
-salen de cada modelo de entrenamiento.
-
-Para identificar aquellas actividades que fueron registradas
-erróneamente por el usuario, planeo almacenar todos los registros que
-sean ingresados como un registro de un tipo (tengan un 1) pero egun la
-columna generada por mi modelo, tienen un 0, lo cual indica que fue
-ingresado de mala manera.
+calificada en una etapa anterior mientras que la data de entrenamiento
+se va a calificar corriendo nuevamente el modelo en esta etapa y
+obteniendo sus valores probabilisticos para almacenarlos en una unica
+data de entrenamiento a traves de la función “rbind”.
 
 ``` r
-modeloKnn_Ride_2 <- knn(data_de_entrenamiento_escalada_2[,-c(9:13)], data_de_entrenamiento_escalada_2[,-c(9:13)],  cl = data_de_entrenamiento_escalada_2$type_Ride, k = 15, prob = TRUE)
 modeloKnn_Run_2 <- knn(data_de_entrenamiento_escalada_2[,-c(9:13)], data_de_entrenamiento_escalada_2[,-c(9:13)], cl = data_de_entrenamiento_escalada_2$type_Run, k = 15, prob = TRUE)    
 
 objetivo_secundario_entrenamiento_escalado$prob_knn_Run <- modeloKnn_Run_2 %>% as.character() %>% as.numeric()
-objetivo_secundario_entrenamiento_escalado$prob_knn_Ride <- modeloKnn_Ride_2 %>% as.character() %>% as.numeric()
 
-data_auxiliar_1 = objetivo_secundario_prueba_escalado[,c(1:14,16),]
-modeloKNN_Corregido=rbind.data.frame(objetivo_secundario_entrenamiento_escalado,data_auxiliar_1)
-
-registro_erroneo_Ride <- modeloKNN_Corregido %>% filter(modeloKNN_Corregido$type_Ride != modeloKNN_Corregido$prob_knn_Ride)
-registro_erroneo_Run <- modeloKNN_Corregido %>% filter(modeloKNN_Corregido$type_Run != modeloKNN_Corregido$prob_knn_Run)
-
-registro_erroneo_Ride = registro_erroneo_Ride[,c(1:9,15)]
-registro_erroneo_Run = registro_erroneo_Run[,c(1:8,10,14)]
-
-head(registro_erroneo_Ride, n=10)
+objetivo_secundario_prueba_escalado = objetivo_secundario_prueba_escalado[,c(1:13,16),]
+modeloKNN_Corregido = rbind.data.frame(objetivo_secundario_entrenamiento_escalado,objetivo_secundario_prueba_escalado)
 ```
 
-    ##          calories    distance    elev_low  elev_high  max_speed moving_time
-    ## 14365  -1.4046412 -1.44274899  1.52399141  0.6822918 -0.7385790  -1.5476456
-    ## 83986  -0.1337781 -0.14416396  7.24971301  5.4108262  0.2719459   0.2373944
-    ## 88941  -1.3708461 -1.45338151  5.25560860  3.3871679 -1.5528937  -1.5484559
-    ## 118567 -1.4117340 -1.45840359  0.62567546  0.0496831 -1.3280519  -1.5537227
-    ## 43510   0.1015360 -0.34997454  0.08011166 -0.1609566  0.1456303   0.0964062
-    ## 128279 -0.6536387  0.04280859 -0.34819518 -0.3678041 -0.0438431   0.2856059
-    ## 78356  -1.4106909 -1.44327432 -0.87904054 -0.9993786 -0.5912108  -1.5553433
-    ## 127566  0.4766200  1.53271583  0.82143082  2.1833153  0.7561558   1.8530865
-    ## 79899   0.3593801 -0.58397389  0.97180430  0.5685256  0.6298402  -0.3115682
-    ## 51381  -1.1353234 -0.94980801 -0.10926571 -0.4346848 -1.1596310  -0.6409458
-    ##        average_speed total_elevation_gain type_Ride prob_knn_Ride
-    ## 14365     0.02839677          -0.89938678         1             0
-    ## 83986    -0.50861756           0.46674969         1             0
-    ## 88941    -0.88555560          -0.83811045         1             0
-    ## 118567   -1.16556672          -0.89938678         1             0
-    ## 43510    -0.62512568          -0.57672400         1             0
-    ## 128279   -0.35392610          -0.38135020         0             1
-    ## 78356     1.05787821          -0.88162553         1             0
-    ## 127566   -0.23497033           2.96102182         0             1
-    ## 79899    -0.56638209          -0.06964019         0             1
-    ## 51381    -0.84149791          -0.83899852         1             0
+Para identificar aquellas actividades que fueron registradas
+erróneamente por el usuario, se almacenan todos los registros que sean
+ingresados como un registro de una salida a correr (tenga un 1) pero
+segun la columna generada por el modelo, tienen un 0, lo cual indica que
+fue ingresado de mala manera.
+
+``` r
+registro_erroneo_Run <- modeloKNN_Corregido %>% filter(modeloKNN_Corregido$type_Run != modeloKNN_Corregido$prob_knn_Run)
+
+registro_erroneo_Run = registro_erroneo_Run[,c(1:8,10,14)]
+```
+
+De esta manera, el siguente valor notifica de cuantos valores fueron
+registrados como una salida a correr por el usuario pero segun el modelo
+este registro no corresponde a un registro de una salida a correr o
+todos los registros que segun el modelo deberian ser un registro de una
+salida a correr pero el usuario no los registró como una salida de esta
+actividad. Ademas, se muestran 10 registos obtenidos por este algoritmo
+en el cual se encontró un error en el registro.
+
+``` r
+nrow(registro_erroneo_Run)
+```
+
+    ## [1] 3606
 
 ``` r
 head(registro_erroneo_Run, n=10)
@@ -1229,29 +1256,31 @@ head(registro_erroneo_Run, n=10)
     ## 103016   -0.85961052           -0.8910982        0            1
     ## 20994    -1.09213723           -0.8993868        1            0
 
-El re bla bla bla
+## Variable Walk en modelo Arbol de Decisión
 
-``` r
-nrow(registro_erroneo_Ride)
-```
-
-    ## [1] 3141
-
-El re bla bla bla
-
-``` r
-nrow(registro_erroneo_Run)
-```
-
-    ## [1] 3607
-
-Para el caso de Walk es el modelo de arboles de decisión
-
-Para discriminar en este modelo, se crean dos columnas de
+En este caso es necesario volver a realizar el modelo pero a diferencia
+del modelo de arbol de decisión anteriormente implementado, se utilizará
+solo la data escalada pero completa, por lo cual a traves de un “rbind”
+se unieron la data de entrenamiento escalada y data de prueba escalada,
+en donde se vuelve a modificar la variable a predecir por una variable
+de tipo factor. Se vuelve a crear una receta utilizando todas las
+variables del dataframe de la data escalada completa para predecir la
+variable “Walk” y se vuelve a crear una función denomidada “fitea\_2”
+que a traves del modelo y de la receta ingresada, predice los valores de
+la variable a estimar con lo aprendido por la data escalada
+completa.Para discriminar en este modelo, se crean dos columnas de
 probabilidades. Si dentro de cada fila el valor .pred\_0 es mayor al
 valor .pred\_1, el registro no corresponde a una actividad del tipo
 Walk. Por lo tanto, si la prob\_1 es alta, el algoritmo detectó que ese
-registro corresponde a una actividad de caminata.
+registro corresponde a una actividad de caminata. En este caso la
+función almacena en la variable de “registro\_erroneo\_ArbDec\_1” todos
+los registros que segun el modelo deberían ser un registro de una salida
+a caminar pero estan ingresados como otra actividad y en la variable
+“registro\_erroneo\_ArbDec\_2” los valores que estan registrados como
+una salida a comer pero segun el modelo no son un registro de esta
+actividad. Finalmente pretende imprimir una lista de 20 registros
+erroneos de cada una de estas variables explicadas y retorna el numero
+de valores que cada una de estas variables contiene.
 
 ``` r
 data_escalada = rbind.data.frame(data_de_entrenamiento_escalada, data_de_prueba_escalada)
@@ -1269,26 +1298,44 @@ modelo_fit <-
 
 registro_erroneo_ArbDec <- predict(modelo_fit, data_escalada, type = "prob") %>% bind_cols(data_escalada) 
 
-registro_erroneo_ArbDec <- registro_erroneo_ArbDec %>% filter(registro_erroneo_ArbDec$.pred_1 > 0.5 & registro_erroneo_ArbDec$type_Walk == 0)
+registro_erroneo_ArbDec_1 = registro_erroneo_ArbDec
+registro_erroneo_ArbDec_2 = registro_erroneo_ArbDec
 
-head(registro_erroneo_ArbDec, n=20) ## ESTO NO SE ESTA IMPRIMIENDO AAAAA VER EN EL RMARKDOWN
+registro_erroneo_ArbDec_1 <- registro_erroneo_ArbDec_1 %>% filter(registro_erroneo_ArbDec$.pred_1 > 0.5 & registro_erroneo_ArbDec$type_Walk == 0)
+registro_erroneo_ArbDec_2 <- registro_erroneo_ArbDec_2 %>% filter(registro_erroneo_ArbDec$.pred_1 < 0.5 & registro_erroneo_ArbDec$type_Walk == 1)
 
-return(nrow(registro_erroneo_ArbDec))
+head(registro_erroneo_ArbDec_1, n=20) 
+head(registro_erroneo_ArbDec_2, n=20) 
 
+return(nrow(registro_erroneo_ArbDec_1))
+return(nrow(registro_erroneo_ArbDec_2))
 }
+```
+
+El resultado obtenido debería ser mostrado a traves de esta función pero
+debido a la implementación de R, no imprime ambos valores. Sin embargo,
+si los registra y discrimina a la perfección.
+
+``` r
 fitea_2(modelo, receta_Walk_2,data_escalada$type_Walk)
 ```
 
     ## [1] 736
 
-Por ultimo, el modelo Naive Bayes predice de la mejor manera a los tipos
-Hike y Ebike.
+## Variable Ride, Hike Y EBikeRide en modelo Naive Bayes
 
-Se vuelve a formar el modelo pero ocupando toda la data limpiada y
-escalada. Luego, se guardan los resultados de esas probabilidades en el
-data frame “data\_escalada”.
+En este caso se vuelve a formar el modelo pero ocupando toda la data
+limpiada y escalada. Luego, se guardan los resultados de las
+probabilidades obtenidas en el data frame “data\_escalada”. Por lo
+tanto, para cada variable se vuelve a hacer el modelo prediciendo cada
+una de las variables descritas a partir del resto de variables desde el
+data frame “data escalada”.
 
 ``` r
+modeloNB_Ride_2 <- naiveBayes(type_Ride ~ calories + distance + elev_high + elev_low + max_speed + moving_time + average_speed + total_elevation_gain, data = data_escalada)
+prediccion_NB_Ride_2 <- predict(modeloNB_Ride_2, data_escalada, type ="raw")
+data_escalada$prob_NB_Ride <- prediccion_NB_Ride_2[,2]
+
 modeloNB_Hike_2 <- naiveBayes(type_Hike ~ calories + distance + elev_high + elev_low + max_speed + moving_time + average_speed + total_elevation_gain, data = data_escalada)
 prediccion_NB_Hike_2 <- predict(modeloNB_Hike_2, data_escalada, type ="raw")
 data_escalada$prob_NB_Hike <- prediccion_NB_Hike_2[,2]
@@ -1296,15 +1343,123 @@ data_escalada$prob_NB_Hike <- prediccion_NB_Hike_2[,2]
 modeloNB_EBikeRide_2 <- naiveBayes(type_EBikeRide ~ calories + distance + elev_high + elev_low + max_speed + moving_time + average_speed + total_elevation_gain, data = data_escalada)
 prediccion_NB_EBikeRide_2 <- predict(modeloNB_EBikeRide_2, data_escalada, type ="raw")
 data_escalada$prob_NB_EBikeRide <- prediccion_NB_EBikeRide_2[,2]
+```
 
+Luego, la data es discriminada en 2 variables por cada una de las
+variables estimadas. Para cada una de ellas, la variable “registro
+erroneo 1” almacena los registros ingresados a la base de datos como un
+registro de otra actividad pero segun el modelo son un registro de la
+actividad predecida y la variable de “registro erroneo 2” son los
+registros que fueron ingresados como un registro de la actividad
+predecida pero el modelo determinó que corresponden a otra actividad.
+Luego a cada una de estas variable se le eliminaron algunas columnas
+para mejorar su sintaxis visual.
 
-registro_erroneo_Hike <- data_escalada %>% filter(data_escalada$type_Hike == 0 & data_escalada$prob_NB_Hike > 0.9)
-registro_erroneo_EBikeRide <- data_escalada %>% filter(data_escalada$type_EBikeRide & data_escalada$prob_NB_EBikeRide >0.9)
+``` r
+registro_erroneo_Ride_1 <- data_escalada %>% filter(data_escalada$type_Ride == 0 & data_escalada$prob_NB_Ride > 0.9)
+registro_erroneo_Ride_2 <- data_escalada %>% filter(data_escalada$type_Ride == 1 & data_escalada$prob_NB_Ride < 0.9)
+registro_erroneo_Hike_1 <- data_escalada %>% filter(data_escalada$type_Hike == 0 & data_escalada$prob_NB_Hike > 0.9)
+registro_erroneo_Hike_2 <- data_escalada %>% filter(data_escalada$type_Hike == 1 & data_escalada$prob_NB_Hike < 0.9)
+registro_erroneo_EBikeRide_1 <- data_escalada %>% filter(data_escalada$type_EBikeRide == 0 & data_escalada$prob_NB_EBikeRide > 0.9)
+registro_erroneo_EBikeRide_2 <- data_escalada %>% filter(data_escalada$type_EBikeRide == 1 & data_escalada$prob_NB_EBikeRide < 0.9)
 
-registro_erroneo_Hike = registro_erroneo_Hike[,c(1:8,12,14)]
-registro_erroneo_EBikeRide = registro_erroneo_EBikeRide[,c(1:8,13,15)]
+registro_erroneo_Ride_1 = registro_erroneo_Ride_1[,c(1:9,14)]
+registro_erroneo_Ride_2 = registro_erroneo_Ride_2[,c(1:9,14)]
+registro_erroneo_Hike_1 = registro_erroneo_Hike_1[,c(1:8,12,15)]
+registro_erroneo_Hike_2 = registro_erroneo_Hike_2[,c(1:8,12,15)]
+registro_erroneo_EBikeRide_1 = registro_erroneo_EBikeRide_1[,c(1:8,13,16)]
+registro_erroneo_EBikeRide_2 = registro_erroneo_EBikeRide_2[,c(1:8,13,16)]
+```
 
-head(registro_erroneo_Hike, n=10)
+En el caso de los registros ingresados a la base de datos como uotra
+actividad pero que segun el modelo son un registro de “Ride” son la
+cantidad presentada a continuación y se detallan de forma visual 10
+registros contenidos en este error de registro:
+
+``` r
+nrow(registro_erroneo_Ride_1)
+```
+
+    ## [1] 1543
+
+``` r
+head(registro_erroneo_Ride_1, n=10)
+```
+
+    ##          calories    distance    elev_low   elev_high  max_speed moving_time
+    ## 34267   0.2955449 -0.64793708  0.17602687 -0.19543121  1.0087870 -0.55100505
+    ## 127566  0.4766200  1.53271583  0.82143082  2.18331531  0.7561558  1.85308653
+    ## 25833   4.6075507  2.37879916 -1.43785095 -0.50259978 -0.5280530  3.50848224
+    ## 72734   0.6032473 -0.40039493  0.22680552  0.07450481  0.8403662 -0.03728949
+    ## 98618   1.5972825  0.03482369 -0.03935308 -0.29489039  0.8193136  0.16649515
+    ## 137631  1.1005779  0.31370654  0.16842234  0.79243809  5.1350972  2.07226643
+    ## 72742   1.1285318 -0.11813951  0.22680552  0.07709040  0.9877344  0.47804662
+    ## 4936    0.7995510 -0.12922381 -1.00905350 -0.67979916  0.9456292  1.28184131
+    ## 95959   0.3977647  1.56079953  0.74342305  1.32455334  0.5245772  1.67644616
+    ## 86800  -0.2241070 -0.96990682 -0.84028196 -0.81028547  2.5877322 -0.79368298
+    ##        average_speed total_elevation_gain type_Ride prob_NB_Ride
+    ## 34267     -0.3739968           -0.7629211         0    0.9433627
+    ## 127566    -0.2349703            2.9610218         0    0.9998944
+    ## 25833     -0.4963793            2.8645190         0    0.9823216
+    ## 72734     -0.5771517           -0.2809991         0    0.9009002
+    ## 98618     -0.2574887           -0.4050319         0    0.9147087
+    ## 137631    -0.9663280            1.5957734         0    1.0000000
+    ## 72742     -0.6466650           -0.1667350         0    0.9491493
+    ## 4936      -1.0040218            0.5410509         0    0.9452331
+    ## 95959     -0.1287423            3.0353231         0    0.9998777
+    ## 86800     -0.6843588           -0.5503781         0    0.9999711
+
+En el caso de los registros ingresados a la base de datos como una
+actividad de “Ride” pero que segun el modelo son un registro de otra
+actividad son la cantidad presentada a continuación y se detallan de
+forma visual 10 registros contenidos en este error de registro:
+
+``` r
+nrow(registro_erroneo_Ride_2)
+```
+
+    ## [1] 19376
+
+``` r
+head(registro_erroneo_Ride_2, n=10)
+```
+
+    ##          calories   distance    elev_low   elev_high  max_speed moving_time
+    ## 93309  -1.1651548 -0.8713670  0.50424827  0.02417191 -0.1912113  -0.8564794
+    ## 11629  -1.1918572 -1.0320734 -1.24602051 -1.23932171  0.2719459  -1.2608076
+    ## 42610   0.1952027 -0.2274905  0.95487808  1.05720292  0.2719459   0.1713568
+    ## 136708 -1.4004690 -1.0960051  0.21699322 -0.19094951 -0.1701587  -1.3175270
+    ## 113502 -1.0458289 -0.8732476  0.02074725 -0.24507462 -0.6543686  -1.1068550
+    ## 14365  -1.4046412 -1.4427490  1.52399141  0.68229178 -0.7385790  -1.5476456
+    ## 110    -0.9993085 -0.9326195 -0.62269424 -0.75909071  0.3772090  -0.8617462
+    ## 139628  0.1140527 -0.3142737  0.50596542  0.64402499  0.2087881   0.2349636
+    ## 80730  -1.1793404 -0.9794782 -0.20640747 -0.49018893 -0.1280535  -1.2324479
+    ## 83986  -0.1337781 -0.1441640  7.24971301  5.41082616  0.2719459   0.2373944
+    ##        average_speed total_elevation_gain type_Ride prob_NB_Ride
+    ## 93309    -0.31721136           -0.7975556         1 1.679409e-01
+    ## 11629     0.76073355           -0.7839386         1 8.302242e-01
+    ## 42610    -0.54680089            0.5520037         1 6.319334e-01
+    ## 136708    0.87822073           -0.8162049         1 7.201769e-01
+    ## 113502    0.52673824           -0.6714507         1 2.194040e-01
+    ## 14365     0.02839677           -0.8993868         1 4.761168e-02
+    ## 110      -0.46896563           -0.6297117         1 5.149075e-01
+    ## 139628   -0.68484833            0.3350204         1 5.554145e-01
+    ## 80730     0.83269445           -0.8111726         1 7.205549e-01
+    ## 83986    -0.50861756            0.4667497         1 5.199282e-06
+
+En el caso de los registros ingresados a la base de datos como uotra
+actividad pero que segun el modelo son un registro de “Hike” son la
+cantidad presentada a continuación y se detallan de forma visual 10
+registros contenidos en este error de registro:
+
+``` r
+nrow(registro_erroneo_Hike_1)
+```
+
+    ## [1] 938
+
+``` r
+head(registro_erroneo_Hike_1, n=10)
 ```
 
     ##          calories   distance   elev_low elev_high  max_speed moving_time
@@ -1330,45 +1485,120 @@ head(registro_erroneo_Hike, n=10)
     ## 26219     -0.5497381           -0.7815705         0    0.9994956
     ## 29620     -0.6535184           -0.6862517         0    0.9999999
 
+En el caso de los registros ingresados a la base de datos como una
+actividad de “Hike” pero que segun el modelo son un registro de otra
+actividad son la cantidad presentada a continuación y se detallan de
+forma visual 10 registros contenidos en este error de registro:
+
 ``` r
-head(registro_erroneo_EBikeRide, n=10)
+nrow(registro_erroneo_Hike_2)
 ```
 
-    ##          calories    distance  elev_low elev_high max_speed moving_time
-    ## 9492   -0.1592288 0.563392004 0.4662256 10.658548 1.1140501   0.2852007
-    ## 93564   0.6055421 0.003997809 4.4097885  3.279090 1.4298391  -0.2832085
-    ## 94155   1.9934363 1.216661209 4.7782403  3.241858 1.6614177   0.7596178
-    ## 108270  1.5180101 1.381612261 0.8641143  2.223306 0.4193142   2.4555274
-    ## 95621  -0.1659044 1.968701423 4.4556610  3.620733 0.9877344   1.4633433
-    ## 94966   3.5897338 1.997646655 4.4303943  3.850679 1.6193125   1.9807051
-    ## 9182    3.9650264 1.381601755 0.4588664  1.410567 0.7561558   3.7090258
-    ## 35651   2.5902747 2.689411443 0.7556884  1.804440 0.5456298   2.7427706
-    ## 93075   4.3451171 2.082465116 0.6605091  1.790995 1.1561553   1.5763770
-    ## 131499  3.8976448 1.339838670 0.8216761  1.151836 0.7982610   1.3657050
+    ## [1] 991
+
+``` r
+head(registro_erroneo_Hike_2, n=10)
+```
+
+    ##           calories   distance   elev_low  elev_high  max_speed moving_time
+    ## 102092 -0.17153687 -0.4839106  0.4340903  0.5144005 -1.2859467   1.7761102
+    ## 98323   0.41236754 -0.4922002  0.2650735  0.3896025 -1.4964727   1.6464659
+    ## 125171  1.79129151  0.1378498  0.6884742  0.3747785 -1.4543675   4.4885122
+    ## 95892  -0.52221330 -1.0234581  0.9612561  0.8432881 -1.0333154  -0.2082579
+    ## 75393  -0.08830076 -0.5152723 -0.4139376  0.7022870 -1.4964727   1.0460507
+    ## 19176  -0.45545752 -1.2165244 -1.3269720 -1.0538484 -0.3175269  -0.6887521
+    ## 137631  1.10057785  0.3137065  0.1684223  0.7924381  5.1350972   2.0722664
+    ## 43008   0.38942025 -0.7949431  0.2042372  0.5657677 -1.4964727   0.4521178
+    ## 114802 -0.93109241 -1.2107669  1.0373014  1.0377248 -1.3069993  -0.8341968
+    ## 111843 -0.93526465 -0.7911713  1.4150749  0.8236376  0.5666824  -0.2046117
+    ##        average_speed total_elevation_gain type_Hike prob_NB_Hike
+    ## 102092     -1.334944            0.2065473         1 0.0926099807
+    ## 98323      -1.317321            0.2225324         1 0.0671451183
+    ## 125171     -1.388792            0.1189251         1 0.0637831963
+    ## 95892      -1.276690            0.1372784         1 0.1094769338
+    ## 75393      -1.203261           -0.6773711         1 0.0636132982
+    ## 19176      -1.356973           -0.2508050         1 0.0453191550
+    ## 137631     -0.966328            1.5957734         1 0.0002359059
+    ## 43008      -1.262983            0.5037523         1 0.0544799352
+    ## 114802     -1.237038           -0.8993868         1 0.1465272207
+    ## 111843     -0.957027           -0.3251062         1 0.0433556927
+
+En el caso de los registros ingresados a la base de datos como uotra
+actividad pero que segun el modelo son un registro de “EBikeRide” son la
+cantidad presentada a continuación y se detallan de forma visual 10
+registros contenidos en este error de registro:
+
+``` r
+nrow(registro_erroneo_EBikeRide_1)
+```
+
+    ## [1] 1659
+
+``` r
+head(registro_erroneo_EBikeRide_1, n=10)
+```
+
+    ##          calories  distance   elev_low   elev_high  max_speed moving_time
+    ## 83986  -0.1337781 -0.144164  7.2497130  5.41082616  0.2719459   0.2373944
+    ## 133883  2.5777580  2.323336  0.5874075  1.42142693  0.5666824   2.7966540
+    ## 35522   1.4762877  0.742863 12.5692054  8.51491799 -1.0754206   0.9613768
+    ## 25833   4.6075507  2.378799 -1.4378510 -0.50259978 -0.5280530   3.5084822
+    ## 72012   2.0416257  2.024816  0.5574800  2.65734088  1.1772079   1.5184422
+    ## 44945   2.5193467  1.352079  0.5874075  1.45176457  1.0087870   1.7967723
+    ## 133771  3.0805124  1.114213  0.6109570  1.40074218  0.7561558   1.7453197
+    ## 125108  0.9902222  1.543937  0.5825013  2.46049099  0.8403662   2.3696381
+    ## 33766   2.4901410  2.320446 -1.3858458  0.09898176  1.3877339   2.9080671
+    ## 12475   2.3774906  0.047568  4.6016189  5.03229519 -0.3596321   4.2195002
     ##        average_speed total_elevation_gain type_EBikeRide prob_NB_EBikeRide
-    ## 9492      0.17623481           -0.8768892              1         0.9999989
-    ## 93564     0.26777691            0.3314681              1         0.9417360
-    ## 94155     0.28539999            0.8358878              1         0.9980486
-    ## 108270   -0.55316478            3.0104573              1         0.9330312
-    ## 95621     0.24917477            0.8563132              1         0.9949153
-    ## 94966    -0.04699084            2.1727182              1         0.9999883
-    ## 9182     -0.87038018            2.3091838              1         0.9895707
-    ## 35651    -0.06950921            2.8677752              1         0.9706021
-    ## 93075     0.24036323            2.7292375              1         0.9977614
-    ## 131499   -0.08419511            3.0974875              1         0.9941300
+    ## 83986     -0.5086176            0.4667497              0         0.9999939
+    ## 133883    -0.2501458            2.3450023              0         0.9231755
+    ## 35522     -0.2413342           -0.3931910              0         1.0000000
+    ## 25833     -0.4963793            2.8645190              0         0.9236992
+    ## 72012      0.2452585            3.7422210              0         0.9911994
+    ## 44945     -0.3083998            2.9696064              0         0.9599059
+    ## 133771    -0.4195231            1.9394537              0         0.9071602
+    ## 125108    -0.4464473            3.3189111              0         0.9640264
+    ## 33766     -0.2922453            4.0678440              0         0.9739096
+    ## 12475     -1.3951563            2.9488850              0         0.9998319
 
-El re bla bla bla
-
-``` r
-nrow(registro_erroneo_Hike)
-```
-
-    ## [1] 938
-
-El re bla bla bla
+En el caso de los registros ingresados a la base de datos como una
+actividad de “EBikeRide” pero que segun el modelo son un registro de
+otra actividad son la cantidad presentada a continuación y se detallan
+de forma visual 10 registros contenidos en este error de registro:
 
 ``` r
-nrow(registro_erroneo_EBikeRide)
+nrow(registro_erroneo_EBikeRide_2)
 ```
 
-    ## [1] 49
+    ## [1] 425
+
+``` r
+head(registro_erroneo_EBikeRide_2, n=10)
+```
+
+    ##          calories     distance   elev_low  elev_high  max_speed moving_time
+    ## 127566  0.4766200  1.532715830  0.8214308  2.1833153  0.7561558   1.8530865
+    ## 41548  -0.2197262 -0.210837803 -1.4226419 -0.9645593 -0.0859483   0.3001908
+    ## 95959   0.3977647  1.560799534  0.7434230  1.3245533  0.5245772   1.6764462
+    ## 119983  1.1813106 -0.234760959  0.8209402  0.7238337  1.4929969  -0.2552540
+    ## 35028  -0.4450269 -0.322153497  0.8557739  0.7705467 -0.1491061  -0.1235840
+    ## 42117  -0.4909215 -0.018916729 -1.3932050 -0.8994023  0.7140506  -0.2321611
+    ## 34573   0.9088636  1.329090585  0.8106373  2.0854075  0.3351038   2.3663969
+    ## 34575   0.9839639  0.740215329  1.5784497  2.2912208  1.5351021   1.8271577
+    ## 14362  -0.5597634 -0.507255895  0.7880690  0.8401854  0.3140511  -0.6441869
+    ## 139294  1.3861674 -0.007685348  0.8562645  1.1137412  1.4929969   0.4419893
+    ##        average_speed total_elevation_gain type_EBikeRide prob_NB_EBikeRide
+    ## 127566   -0.23497033            2.9610218              1      0.8904142543
+    ## 41548    -0.62218850            0.9477837              1      0.0006730083
+    ## 95959    -0.12874233            3.0353231              1      0.7084976573
+    ## 119983   -0.12139938            0.6271930              1      0.0232489828
+    ## 35028    -0.39651520            0.9442314              1      0.0026752817
+    ## 42117     0.15322691            0.8181265              1      0.0026574106
+    ## 34573    -0.54826948            2.8168596              1      0.8171177959
+    ## 34575    -0.66281949            2.4557141              1      0.8645367222
+    ## 14362     0.06560105            0.3640304              1      0.0024994852
+    ## 139294   -0.52085581            1.3364591              1      0.1170412412
+
+De esta manera, se demuestra el correcto funcionamiento del objetivo
+scundario ya que el programa permita identificar aquellas actividades
+que fueron registradas erróneamente por el usuario.
